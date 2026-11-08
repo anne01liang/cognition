@@ -1,0 +1,114 @@
+// =============================================================================
+// Prisma schema for the internal-tools platform.
+//
+// CONVENTIONS (enforced by `npm run check:schema` and the risk-label workflow):
+//   * Every field holding personal data MUST have a `/// @pii` doc comment.
+//   * Every field holding money MUST have a `/// @money` doc comment and be an
+//     Int/BigInt of minor units (cents) or Decimal. Never Float.
+//   * Each app owns ONE clearly marked section: `// ===== app: <name> =====`.
+//     Do not edit another app's section or the platform section in an app PR.
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===== platform =====
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  /// @pii
+  name      String
+  /// @pii
+  email     String   @unique
+  /// Role names from src/platform/rbac.ts (ROLES). Unknown roles are ignored.
+  roles     String[]
+  createdAt DateTime @default(now())
+}
+
+/// Append-only, hash-chained audit log. UPDATE/DELETE/TRUNCATE are rejected by
+/// a Postgres trigger (see migrations). Rows are only written by
+/// src/platform/audit.ts -> writeAuditEvent(), called from defineAction().
+model AuditEvent {
+  id         String   @id
+  seq        BigInt   @unique
+  actorId    String
+  action     String
+  entityType String
+  entityId   String
+  before     Json?
+  after      Json?
+  reason     String?
+  createdAt  DateTime
+  prevHash   String
+  hash       String   @unique
+
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+/// Shared maker-checker status. See src/platform/approval.ts.
+enum ApprovalStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  ESCALATED
+}
+
+// ===== app: kyc =====
+
+enum KycRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model KycCase {
+  id             String         @id @default(cuid())
+  /// @pii
+  customerName   String
+  /// @pii
+  documentNumber String
+  country        String
+  riskLevel      KycRiskLevel
+  notes          String?
+  status         ApprovalStatus @default(DRAFT)
+  createdById    String
+  submittedById  String?
+  decidedById    String?
+  decisionReason String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([status])
+}
+
+// ===== app: refunds =====
+
+model Refund {
+  id             String         @id @default(cuid())
+  /// @pii
+  customerName   String
+  /// @pii
+  accountNumber  String
+  /// @money Minor units (cents).
+  amountCents    Int
+  currency       String         @default("USD")
+  reason         String
+  status         ApprovalStatus @default(PENDING)
+  submittedById  String
+  decidedById    String?
+  decisionReason String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([status])
+}

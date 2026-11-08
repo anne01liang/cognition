@@ -1,0 +1,7 @@
+diff --git a/src/platform/rbac.ts b/src/platform/rbac.ts
+index 1111111..2222222 100644
+--- a/src/platform/rbac.ts
++++ b/src/platform/rbac.ts
+@@ -40,7 +40,7 @@ export const ROLES = {
+-  support: ["kyc:read", "refund:read", "refund:request"],
++  support: ["kyc:read", "refund:read", "refund:request", "refund:approve"],

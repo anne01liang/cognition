@@ -1,0 +1,77 @@
+{
+  "_comment": "Each entry must have an owner-approved reason and expiry. Remove entries by upgrading to Next >= 15.",
+  "advisories": [
+    {
+      "id": "GHSA-h25m-26qc-wcjf",
+      "package": "next",
+      "reason": "Stack mandates Next.js 14; fixed only in Next >= 15. Next.js HTTP request deserialization can lead to DoS when using insecure React Server Components",
+      "expires": "2027-02-01"
+    },
+    {
+      "id": "GHSA-q4gf-8mx6-v5v3",
+      "package": "next",
+      "reason": "Stack mandates Next.js 14; fixed only in Next >= 15. Next.js has a Denial of Service with Server Components",
+      "expires": "2027-02-01"
+    },
+    {
+      "id": "GHSA-8h8q-6873-q5fj",
+      "package": "next",
+      "reason": "Stack mandates Next.js 14; fixed only in Next >= 15. Next.js Vulnerable to Denial of Service with Server Components",
+      "expires": "2027-02-01"
+    },
+    {
+      "id": "GHSA-c4j6-fc7j-m34r",
+      "package": "next",
+      "reason": "Stack mandates Next.js 14; fixed only in Next >= 15. Next.js vulnerable to server-side request forgery in applications using WebSocket upgrades",
+      "expires": "2027-02-01"
+    },
+    {
+      "id": "GHSA-36qx-fr4f-26g5",
+      "package": "next",
+      "reason": "Stack mandates Next.js 14; fixed only in Next >= 15. Next.js has a Middleware / Proxy bypass in Pages Router applications using i18n",
+      "expires": "2027-02-01"
+    },
+    {
+      "id": "GHSA-m99w-x7hq-7vfj",
+      "package": "next",
+      "reason": "Stack mandates Next.js 14; fixed only in Next >= 15. Next.js: Denial of Service in App Router using Server Actions",
+      "expires": "2027-02-01"
+    },
+    {
+      "id": "GHSA-89xv-2m56-2m9x",
+      "package": "next",
+      "reason": "Stack mandates Next.js 14; fixed only in Next >= 15. Next.js: Server-Side Request Forgery in Server Actions on custom servers",
+      "expires": "2027-02-01"
+    },
+    {
+      "id": "GHSA-p9j2-gv94-2wf4",
+      "package": "next",
+      "reason": "Stack mandates Next.js 14; fixed only in Next >= 15. Next.js: Server-Side Request Forgery in rewrites via attacker-controlled destination hostname",
+      "expires": "2027-02-01"
+    },
+    {
+      "id": "GHSA-p293-qw3h-jr36",
+      "package": "next",
+      "reason": "Stack mandates Next.js 14; fixed only in Next >= 15. Next.js: Unauthenticated Remote Code Execution on windows-hosted servers",
+      "expires": "2027-02-01"
+    },
+    {
+      "id": "GHSA-2xp9-vwfh-vxw4",
+      "package": "next",
+      "reason": "Stack mandates Next.js 14; fixed only in Next >= 15. Next.js: Unauthenticated Remote Code Execution in Image Optimization API when AVIF files are used",
+      "expires": "2027-02-01"
+    },
+    {
+      "id": "GHSA-2464-fhr4-w9xw",
+      "package": "next",
+      "reason": "Stack mandates Next.js 14; fixed only in Next >= 15. Next.js: Unauthenticated Remote Code Execution in Image Optimization API when SVG files are used",
+      "expires": "2027-02-01"
+    },
+    {
+      "id": "GHSA-p3m5-59mp-jv5r",
+      "package": "next",
+      "reason": "Stack mandates Next.js 14; fixed only in Next >= 15. Next.js: Denial of Service in App Router using Server Actions",
+      "expires": "2027-02-01"
+    }
+  ]
+}

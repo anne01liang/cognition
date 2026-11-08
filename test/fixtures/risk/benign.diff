@@ -1,0 +1,7 @@
+diff --git a/src/apps/kyc/pages/CaseListPage.tsx b/src/apps/kyc/pages/CaseListPage.tsx
+index 1111111..2222222 100644
+--- a/src/apps/kyc/pages/CaseListPage.tsx
++++ b/src/apps/kyc/pages/CaseListPage.tsx
+@@ -20,3 +20,3 @@ export default async function CaseListPage() {
+-        <h1 className="text-2xl font-semibold">KYC cases</h1>
++        <h1 className="text-2xl font-bold">KYC cases</h1>

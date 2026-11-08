@@ -1,0 +1,11 @@
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index 1111111..2222222 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -70,7 +70,7 @@ model KycCase {
+   /// @pii
+   customerName   String
+   /// @pii
+-  documentNumber String
++  documentNumber String?
+   country        String

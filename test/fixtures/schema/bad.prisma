@@ -1,0 +1,9 @@
+// FIXTURE (deliberately violates check-schema).
+model Payout {
+  id            String @id
+  customerName  String
+  ssn           String
+  /// @money
+  amount        Float
+  feeCents      Int
+}

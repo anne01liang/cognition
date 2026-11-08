@@ -1,0 +1,37 @@
+name: risk-label
+
+# Adds "needs-security-review" when a PR touches @pii/@money fields or
+# sensitive permissions (refund|payment|payout|pii). CODEOWNERS + branch
+# protection ("Require review from Code Owners") make @security-team review mandatory.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  assess:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Assess diff
+        id: risk
+        run: |
+          git diff -U3 "origin/${{ github.base_ref }}...HEAD" -- prisma src > pr.diff
+          node scripts/risk-assess.mjs pr.diff
+      - name: Add label
+        if: steps.risk.outputs.risky == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh label create needs-security-review --color B60205 --description "Touches PII, money or sensitive permissions" 2>/dev/null || true
+          gh pr edit "$PR" --add-label needs-security-review

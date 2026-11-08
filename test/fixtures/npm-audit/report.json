@@ -1,0 +1,17 @@
+{
+  "vulnerabilities": {
+    "next": {
+      "severity": "critical",
+      "via": [
+        { "url": "https://github.com/advisories/GHSA-allowed-0001", "title": "Allowlisted issue", "severity": "critical" }
+      ]
+    },
+    "left-pad-evil": {
+      "severity": "high",
+      "via": [
+        { "url": "https://github.com/advisories/GHSA-evil-9999", "title": "Prototype pollution", "severity": "high" }
+      ]
+    },
+    "some-dep": { "severity": "high", "via": ["left-pad-evil"] }
+  }
+}

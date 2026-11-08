@@ -1,0 +1,98 @@
+{
+  "extends": [
+    "next/core-web-vitals",
+    "next/typescript"
+  ],
+  "rules": {
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "@prisma/client",
+            "importNames": [
+              "PrismaClient"
+            ],
+            "message": "Do not instantiate PrismaClient. Platform code uses '@/platform/db'; apps use the `tx` from defineAction()."
+          }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": [
+        "src/apps/**/*.ts",
+        "src/apps/**/*.tsx"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@prisma/client",
+                "message": "Apps may not import @prisma/client. Use the `tx` passed to your defineAction() handler; import types from '@/platform/types'."
+              },
+              {
+                "name": "@/platform/db",
+                "message": "Apps may not import the platform DB client. Use the `tx` passed to your defineAction() handler."
+              },
+              {
+                "name": "@/platform/audit",
+                "message": "Apps may not write audit events directly. Declare `audit` in defineAction() and call ctx.recordAudit()."
+              }
+            ],
+            "patterns": [
+              {
+                "group": [
+                  "@prisma/*",
+                  ".prisma/*",
+                  "**/platform/db",
+                  "**/platform/db.*",
+                  "**/platform/audit",
+                  "**/platform/audit.*"
+                ],
+                "message": "Apps may only touch the DB via the `tx` from defineAction(), and audit via ctx.recordAudit()."
+              }
+            ]
+          }
+        ],
+        "no-restricted-syntax": [
+          "error",
+          {
+            "selector": "MemberExpression[property.name=/^\\$(queryRaw|executeRaw)(Unsafe)?$/]",
+            "message": "Raw SQL is not allowed in apps. Use the Prisma query API on `tx`."
+          },
+          {
+            "selector": "MemberExpression[property.name='$transaction']",
+            "message": "defineAction() already runs your handler in a transaction."
+          },
+          {
+            "selector": "MemberExpression[property.name='auditEvent']",
+            "message": "Apps may not access the AuditEvent table. Use ctx.recordAudit()."
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "src/platform/db.ts",
+        "src/platform/audit.ts",
+        "prisma/seed.ts",
+        "src/platform/__tests__/**"
+      ],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    },
+    {
+      "files": [
+        "src/apps/**/__tests__/**"
+      ],
+      "rules": {
+        "no-restricted-syntax": "off"
+      }
+    }
+  ]
+}

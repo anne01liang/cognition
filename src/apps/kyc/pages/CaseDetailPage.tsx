@@ -20,7 +20,7 @@ export default async function CaseDetailPage({ params }: { params: { id: string 
       <DetailPanel
         title={<span className="flex items-center gap-3">KYC case <StatusBadge status={c.status} /></span>}
         fields={[
-          { label: "Customer", value: c.customerName },
+          { label: "Customer", value: <MaskedField value={c.customerName} entityType="KycCase" entityId={c.id} field="customerName" /> },
           { label: "Document number", value: <MaskedField value={c.documentNumber} entityType="KycCase" entityId={c.id} field="documentNumber" /> },
           { label: "Country", value: c.country },
           { label: "Risk", value: <StatusBadge status={c.riskLevel} /> },

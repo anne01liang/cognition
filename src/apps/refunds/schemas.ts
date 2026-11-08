@@ -21,3 +21,7 @@ export const decideRefundSchema = z.object({
   decision: z.enum(["APPROVE", "REJECT", "ESCALATE"]),
   reason: z.string().trim().min(3, "A reason is required").max(500),
 });
+
+export const resolveRefundEscalationSchema = decideRefundSchema.extend({
+  decision: z.enum(["APPROVE", "REJECT"]),
+});

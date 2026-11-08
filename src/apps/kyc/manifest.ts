@@ -13,6 +13,10 @@ export const kycApp = defineApp({
   ],
   pii: {
     KycCase: {
+      customerName: {
+        readPermission: KYC.read,
+        load: async (tx, id) => (await tx.kycCase.findUnique({ where: { id }, select: { customerName: true } }))?.customerName ?? null,
+      },
       documentNumber: {
         readPermission: KYC.read,
         load: async (tx, id) => (await tx.kycCase.findUnique({ where: { id }, select: { documentNumber: true } }))?.documentNumber ?? null,

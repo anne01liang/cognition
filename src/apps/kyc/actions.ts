@@ -27,7 +27,7 @@ function auditView(c: KycCaseRow) {
 
 /** What goes to the UI: PII masked. Raw values only via revealPii. */
 function publicView(c: KycCaseRow) {
-  return { ...c, customerName: c.customerName, documentNumber: maskValue(c.documentNumber) };
+  return { ...c, customerName: maskValue(c.customerName), documentNumber: maskValue(c.documentNumber) };
 }
 
 export const listCases = defineAction({

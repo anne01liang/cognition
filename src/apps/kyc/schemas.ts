@@ -12,7 +12,7 @@ export const createCaseSchema = z.object({
   notes: z.string().trim().max(1000).optional().describe("Notes"),
 });
 
-export const listCasesSchema = tableQuery(["createdAt", "customerName", "riskLevel", "status"]).extend({
+export const listCasesSchema = tableQuery(["createdAt", "riskLevel", "status"]).extend({
   status: z.enum(CASE_STATUSES).optional(),
 });
 

@@ -13,6 +13,7 @@ export default async function QueuePage({ searchParams }: { searchParams: Record
   const session = await requirePagePermission(KYC_REVIEW.queue);
   const raw = firstValues(searchParams);
   raw.view ??= hasPermission(session, KYC_REVIEW.review) ? "queue" : "approvals";
+  await requirePagePermission(raw.view === "approvals" ? KYC_REVIEW.approve : KYC_REVIEW.review);
   const page = unwrap(await listQueue(raw));
   const approvals = page.params.view === "approvals";
   const countryFilter = { name: "country", label: "Countries", options: COUNTRIES };
@@ -64,7 +65,7 @@ export default async function QueuePage({ searchParams }: { searchParams: Record
             cell: (r) => (
               <span className={r.slaBreached ? "font-medium text-red-700" : ""}>
                 {formatUtc(r.slaDueAt)}
-                {r.slaBreached ? " · breached" : ""}
+                {r.slaBreached ? " · SLA breached" : ""}
               </span>
             ),
           },

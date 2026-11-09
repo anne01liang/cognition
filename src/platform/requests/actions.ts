@@ -19,6 +19,7 @@ import { asApprovable, auditSnapshot, canSee, nextBuildState, teamAcusThisMonth,
 import { estimateAcus, parseManifestYaml, toolRequestFormSchema } from "./manifest";
 
 const ENTITY = "ToolRequest";
+const TEAM_BUDGET_LOCK = 746_174_002;
 const idInput = z.object({ id: z.string().min(1).max(64) });
 const snap = auditSnapshot;
 type Row = ToolRequestRow;
@@ -88,6 +89,8 @@ export const approveToolRequest = defineAction({
     if (r.status !== "SUBMITTED") throw new ConflictError(`Only SUBMITTED requests can be approved (this one is ${r.status}).`);
     const { decidedById } = decideApproval(asApprovable(r), "APPROVE", session.userId); // four-eyes
 
+    // Serialize approvals per team so two concurrent approvals cannot both pass the budget check.
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(${TEAM_BUDGET_LOCK}::int, hashtext(${r.team}::text))::text AS locked`;
     const budget = teamBudgets()[r.team] ?? 0;
     const used = await teamAcusThisMonth(tx, r.team);
     if (used + r.estimatedAcus > budget) {

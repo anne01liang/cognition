@@ -40,8 +40,11 @@ describe.skipIf(!hasTestDb)("tool requests (integration)", async () => {
     await db.$disconnect();
   });
 
+  // Each request gets its own tool name, since submitted requests reserve theirs.
+  let created = 0;
   const create = async () => {
-    const res = await actions.createToolRequest({ form, manifestYaml });
+    const f = { ...form, name: `${form.name} ${String.fromCharCode(97 + created++)}` };
+    const res = await actions.createToolRequest({ form: f, manifestYaml: manifestToYaml(formToManifest(f)) });
     if (!res.ok) throw new Error(JSON.stringify(res.error));
     return res.data.id;
   };
@@ -99,7 +102,7 @@ describe.skipIf(!hasTestDb)("tool requests (integration)", async () => {
     const approve = events[2]!;
     expect((approve.before as { status: string }).status).toBe("SUBMITTED");
     expect((approve.after as { status: string; prompt: string }).status).toBe("APPROVED");
-    expect((approve.after as { prompt: string }).prompt).toContain(`Open a PR titled 'tool-request/${r.id}: Refund Requests'`);
+    expect((approve.after as { prompt: string }).prompt).toContain(`Open a PR titled 'tool-request/${r.id}: ${r.toolName}'`);
     expect((approve.after as { prompt: string }).prompt).toContain("riskTier: HIGH");
     expect((events[3]!.after as { status: string }).status).toBe("BUILDING");
     const all = JSON.stringify(await db.auditEvent.findMany({ where: { entityType: "ToolRequest" } }), (_k, v) => (typeof v === "bigint" ? String(v) : v));
@@ -220,6 +223,25 @@ describe.skipIf(!hasTestDb)("tool requests (integration)", async () => {
       ["BUILDING", "NEEDS_INPUT"],
       ["NEEDS_INPUT", "BUILDING"],
     ]);
+  });
+
+  it("a tool name is reserved by other requests in SUBMITTED, APPROVED, BUILDING, NEEDS_INPUT or PR_OPEN, not by drafts", async () => {
+    olivia();
+    const f = toolRequestFormSchema.parse({ ...form, name: "Reserved Name" });
+    const y = manifestToYaml(formToManifest(f));
+    const createSame = () => actions.createToolRequest({ form: f, manifestYaml: y });
+    const a = await createSame();
+    const b = await createSame();
+    if (!a.ok || !b.ok) throw new Error("drafts do not reserve the name");
+    expect(await actions.submitToolRequest({ id: a.data.id })).toMatchObject({ ok: true });
+    expect(await createSame()).toMatchObject({ ok: false, error: { code: "INVALID_INPUT", message: expect.stringContaining('("Reserved Name", SUBMITTED)') } });
+    expect(await actions.submitToolRequest({ id: b.data.id })).toMatchObject({ ok: false, error: { code: "CONFLICT" } });
+    for (const status of ["APPROVED", "BUILDING", "NEEDS_INPUT", "PR_OPEN"] as const) {
+      await db.toolRequest.update({ where: { id: a.data.id }, data: { status } });
+      expect(await createSame()).toMatchObject({ ok: false, error: { message: expect.stringContaining(`("Reserved Name", ${status})`) } });
+    }
+    await db.toolRequest.update({ where: { id: a.data.id }, data: { status: "FAILED" } });
+    expect(await actions.submitToolRequest({ id: b.data.id })).toMatchObject({ ok: true });
   });
 
   it("two viewers of one request: when one poll saves the change first, both re-render to the server's status", async () => {

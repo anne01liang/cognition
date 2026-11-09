@@ -27,7 +27,28 @@ const idInput = z.object({ id: z.string().min(1).max(64) });
 const snap = auditSnapshot;
 type Row = ToolRequestRow;
 
-const conflictWithExistingApps = (id: string) => newAppConflict(id, { appIds: APPS.map((a) => a.id), permissions: PERMISSIONS });
+const NAME_LOCK = 746_174_003;
+/** Requests in these states hold their app id, so no other request can take it. */
+const RESERVING_STATUSES = ["SUBMITTED", "APPROVED", "BUILDING", "NEEDS_INPUT", "PR_OPEN"] as const;
+
+/**
+ * Why `appId` can't be used: an existing app/permission namespace, or another request that reserves it. Null if free.
+ * Takes a per-id lock held until commit, so two concurrent submits of the same name can't both pass.
+ */
+async function nameConflict(tx: FullTx, appId: string, exceptRequestId?: string): Promise<string | null> {
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(${NAME_LOCK}::int, hashtext(${appId}::text))::text AS locked`;
+  const appConflict = newAppConflict(appId, { appIds: APPS.map((a) => a.id), permissions: PERMISSIONS });
+  if (appConflict) return appConflict;
+  const active = await tx.toolRequest.findMany({
+    where: { status: { in: [...RESERVING_STATUSES] }, ...(exceptRequestId ? { id: { not: exceptRequestId } } : {}) },
+    select: { toolName: true, status: true, manifestYaml: true },
+  });
+  const holder = active.find((r) => {
+    const p = parseManifestYaml(r.manifestYaml);
+    return p.ok && p.manifest.id === appId;
+  });
+  return holder ? `The tool name is already taken by another request ("${holder.toolName}", ${holder.status}); pick another tool name.` : null;
+}
 
 async function load(tx: FullTx, id: string, session: AppSession) {
   const r = await tx.toolRequest.findUnique({ where: { id } });
@@ -52,7 +73,7 @@ export const createToolRequest = defineAction({
     const parsed = parseManifestYaml(input.manifestYaml);
     if (!parsed.ok) throw new ActionError("INVALID_INPUT", "The manifest is invalid.", { manifestYaml: parsed.errors });
     const m = parsed.manifest;
-    const conflict = conflictWithExistingApps(m.id);
+    const conflict = await nameConflict(tx as FullTx, m.id);
     if (conflict) throw new ActionError("INVALID_INPUT", conflict, { manifestYaml: [conflict] });
     const r = await tx.toolRequest.create({
       data: {
@@ -78,6 +99,9 @@ export const submitToolRequest = defineAction({
     const r = await load(tx as FullTx, input.id, session);
     if (r.requestedById !== session.userId) throw new ForbiddenError("tools:request (only the requester can submit)");
     const { submittedById } = submitForApproval(asApprovable(r), session.userId);
+    const parsed = parseManifestYaml(r.manifestYaml);
+    const conflict = parsed.ok ? await nameConflict(tx as FullTx, parsed.manifest.id, r.id) : "The stored manifest is invalid.";
+    if (conflict) throw new ConflictError(conflict);
     const next = await transition(tx as FullTx, r, { status: "SUBMITTED", submittedById });
     await recordAudit({ entityId: r.id, before: snap(r), after: snap(next) });
     return { status: next.status };
@@ -96,7 +120,7 @@ export const approveToolRequest = defineAction({
     if (r.status !== "SUBMITTED") throw new ConflictError(`Only SUBMITTED requests can be approved (this one is ${r.status}).`);
     const { decidedById } = decideApproval(asApprovable(r), "APPROVE", session.userId); // four-eyes
     const parsed = parseManifestYaml(r.manifestYaml);
-    const conflict = parsed.ok ? conflictWithExistingApps(parsed.manifest.id) : "The stored manifest is invalid.";
+    const conflict = parsed.ok ? await nameConflict(tx, parsed.manifest.id, r.id) : "The stored manifest is invalid.";
     if (conflict) throw new ConflictError(conflict);
 
     // Serialize approvals per team so two concurrent approvals cannot both pass the budget check.

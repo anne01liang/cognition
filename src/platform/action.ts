@@ -14,6 +14,9 @@ import type { Permission } from "./rbac";
  * handler a scoped `tx`, (5) if `audit` is set, requires the handler to call
  * ctx.recordAudit() and writes the hash-chained audit event(s) in the same
  * transaction. Any thrown error rolls back both the mutation and the audit.
+ * (6) optional `afterCommit` runs once the transaction has committed, outside
+ * it: use it for slow or external side effects (e.g. third-party API calls)
+ * that must not hold a transaction open or be rolled back.
  *
  * `scripts/check-actions.ts` fails CI if a "use server" file in src/apps
  * exports anything not created by defineAction.
@@ -52,6 +55,12 @@ export interface ActionDefinition<S extends z.ZodType, R> {
   /** Required for every mutation. `false` only for read-only queries. */
   audit: AuditConfig | false;
   handler: (ctx: ActionContext<z.output<S>>) => Promise<R>;
+  /**
+   * Runs after the transaction commits, outside it; its return value replaces the handler's result.
+   * The commit cannot be undone here: any further writes need their own transaction and audit events.
+   * If it throws, the error is logged and the committed handler result is returned.
+   */
+  afterCommit?: (ctx: { result: R; session: AppSession }) => Promise<R>;
 }
 
 export function defineAction<S extends z.ZodType, R>(def: ActionDefinition<S, R>) {
@@ -90,6 +99,13 @@ export function defineAction<S extends z.ZodType, R>(def: ActionDefinition<S, R>
         },
         { timeout: 10_000 },
       );
+      if (def.afterCommit) {
+        try {
+          return { ok: true, data: await def.afterCommit({ result: data, session }) };
+        } catch (err) {
+          console.error("[defineAction] afterCommit failed; the transaction was already committed", err);
+        }
+      }
       return { ok: true, data };
     } catch (err) {
       return toErrorResult(err);

@@ -95,7 +95,7 @@ describe.skipIf(!hasTestDb)("tool requests (integration)", async () => {
     buildingId = r.id;
 
     const events = await audits(r.id);
-    expect(events.map((e) => e.action)).toEqual(["tool-request.create", "tool-request.submit", "tool-request.approve", "tool-request.approve"]);
+    expect(events.map((e) => e.action)).toEqual(["tool-request.create", "tool-request.submit", "tool-request.approve", "tool-request.build-start"]);
     const approve = events[2]!;
     expect((approve.before as { status: string }).status).toBe("SUBMITTED");
     expect((approve.after as { status: string; prompt: string }).status).toBe("APPROVED");
@@ -104,6 +104,45 @@ describe.skipIf(!hasTestDb)("tool requests (integration)", async () => {
     expect((events[3]!.after as { status: string }).status).toBe("BUILDING");
     const all = JSON.stringify(await db.auditEvent.findMany({ where: { entityType: "ToolRequest" } }), (_k, v) => (typeof v === "bigint" ? String(v) : v));
     expect(all).not.toContain(SECRET);
+  });
+
+  it("calls the Devin API only after the approval has committed", async () => {
+    frank();
+    const id = await create();
+    await actions.submitToolRequest({ id });
+    erin();
+    vi.stubEnv("DEVIN_MODE", "live");
+    const seen: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      // A separate connection sees the committed approval while the API call is in flight.
+      seen.push((await db.toolRequest.findUniqueOrThrow({ where: { id } })).status);
+      throw new TypeError("fetch failed"); // network error: a session may exist, so the estimate stays charged
+    }));
+    try {
+      expect(await actions.approveToolRequest({ id })).toMatchObject({ ok: true, data: { status: "FAILED" } });
+    } finally {
+      vi.unstubAllGlobals();
+      vi.stubEnv("DEVIN_MODE", "mock");
+    }
+    expect(seen).toEqual(["APPROVED"]);
+    const r = await db.toolRequest.findUniqueOrThrow({ where: { id } });
+    expect(r).toMatchObject({ status: "FAILED", acusUsed: null, devinSessionId: null });
+    expect(r.lastError).toContain("fetch failed");
+    expect((await audits(id)).map((e) => e.action).slice(-2)).toEqual(["tool-request.approve", "tool-request.build-start"]);
+  });
+
+  it("retries the build start for a request left in APPROVED", async () => {
+    frank();
+    const id = await create();
+    await actions.submitToolRequest({ id });
+    await db.toolRequest.update({ where: { id }, data: { status: "APPROVED", decidedById: "erin", approvedAt: new Date() } });
+    olivia();
+    expect(await actions.retryToolRequestBuild({ id })).toMatchObject({ ok: false, error: { code: "FORBIDDEN" } });
+    erin();
+    expect(await actions.retryToolRequestBuild({ id })).toMatchObject({ ok: true, data: { status: "BUILDING" } });
+    expect(await db.toolRequest.findUniqueOrThrow({ where: { id } })).toMatchObject({ status: "BUILDING", devinSessionId: `mock-${id}` });
+    expect((await audits(id)).map((e) => e.action).slice(-2)).toEqual(["tool-request.build-retry", "tool-request.build-start"]);
+    expect(await actions.retryToolRequestBuild({ id })).toMatchObject({ ok: false, error: { code: "CONFLICT" } });
   });
 
   it("blocks approval when the team's monthly ACU budget would be exceeded", async () => {

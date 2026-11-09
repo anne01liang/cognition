@@ -14,7 +14,8 @@ import { ConflictError, ForbiddenError, NotFoundError, ActionError } from "../er
 import { hasPermission } from "../guard";
 import type { AppSession } from "../session";
 import { teamBudgets, teamFor } from "./config";
-import { DevinApiError, buildPrompt, createDevinSession, devinMode, getDevinSession } from "./devin";
+import { startBuild } from "./build";
+import { buildPrompt, devinMode, getDevinSession } from "./devin";
 import { asApprovable, auditSnapshot, canSee, nextBuildState, teamAcusThisMonth, type ToolRequestRow } from "./lifecycle";
 import { estimateAcus, parseManifestYaml, toolRequestFormSchema } from "./manifest";
 
@@ -105,21 +106,25 @@ export const approveToolRequest = defineAction({
       after: { ...snap(approved), budget: { team: r.team, usedBefore: used, limit: budget }, devinMode: devinMode(), prompt },
       reason: input.reason ?? null,
     });
-
-    // External call inside the transaction: on failure the request moves to FAILED (audited) rather than rolling back.
-    let next: Row;
-    try {
-      const s = await createDevinSession({ requestId: r.id, title: `tool-request/${r.id}: ${r.toolName}`, prompt, maxAcuLimit: r.estimatedAcus });
-      next = await transition(tx, approved, { status: "BUILDING", devinSessionId: s.sessionId, devinSessionUrl: s.url, buildStartedAt: new Date() });
-    } catch (err) {
-      const message = err instanceof Error ? err.message.slice(0, 300) : "Unknown error";
-      // acusUsed = 0 only when no session can exist; timeouts and 5xx keep the estimate charged to the budget.
-      const notStarted = err instanceof DevinApiError && err.definitive;
-      next = await transition(tx, approved, { status: "FAILED", lastError: `Could not start Devin session: ${message}`, acusUsed: notStarted ? 0 : null });
-    }
-    await recordAudit({ entityId: r.id, before: snap(approved), after: { ...snap(next), devinSessionUrl: next.devinSessionUrl, lastError: next.lastError } });
-    return { status: next.status };
+    return { status: approved.status as Row["status"], id: r.id };
   },
+  // The Devin API call happens only after the approval has committed (see build.ts).
+  afterCommit: async ({ result, session }) => ({ status: await startBuild(result.id, session.userId), id: result.id }),
+});
+
+/** Re-runs the build start for a request stuck in APPROVED (e.g. the server died during the Devin API call). */
+export const retryToolRequestBuild = defineAction({
+  permission: "tools:approve",
+  input: idInput,
+  audit: { action: "tool-request.build-retry", entityType: ENTITY },
+  handler: async ({ input, session, tx: appTx, recordAudit }) => {
+    const tx = appTx as FullTx;
+    const r = await load(tx, input.id, session);
+    if (r.status !== "APPROVED") throw new ConflictError(`Only APPROVED requests can be retried (this one is ${r.status}).`);
+    await recordAudit({ entityId: r.id, before: snap(r), after: snap(r), reason: "Retry starting the Devin build" });
+    return { status: r.status as Row["status"], id: r.id };
+  },
+  afterCommit: async ({ result, session }) => ({ status: await startBuild(result.id, session.userId), id: result.id }),
 });
 
 // ---------------------------------------------------------------- status refresh

@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { approveToolRequest, refreshToolRequest, submitToolRequest } from "../actions";
+import { approveToolRequest, refreshToolRequest, retryToolRequestBuild, submitToolRequest } from "../actions";
 
 export function RequestActions({ id, status, canSubmit, canApprove }: { id: string; status: string; canSubmit: boolean; canApprove: boolean }) {
   const router = useRouter();
@@ -45,6 +45,11 @@ export function RequestActions({ id, status, canSubmit, canApprove }: { id: stri
               Approve and start build
             </Button>
           </>
+        ) : null}
+        {status === "APPROVED" && canApprove ? (
+          <Button variant="outline" disabled={pending} onClick={() => run(() => retryToolRequestBuild({ id }))}>
+            Retry starting build
+          </Button>
         ) : null}
         {building ? (
           <Button variant="outline" disabled={pending} onClick={() => run(() => refreshToolRequest({ id }))}>

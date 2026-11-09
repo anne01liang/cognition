@@ -33,6 +33,8 @@ export async function startBuild(id: string, actorId: string): Promise<ToolReque
     // A started session beats a concurrent failed start (e.g. a retry got 429 while the original call succeeded),
     // so the live session is never left untracked.
     const from = data.status === "BUILDING" ? [{ status: "APPROVED" as const }, { status: "FAILED" as const, devinSessionId: null }] : [{ status: "APPROVED" as const }];
+    // Row lock: a concurrent start cannot change the status between reading `before` and the update.
+    await tx.$queryRaw`SELECT id FROM "ToolRequest" WHERE id = ${id} FOR UPDATE`;
     const before = await tx.toolRequest.findUniqueOrThrow({ where: { id } });
     const res = await tx.toolRequest.updateMany({ where: { id, OR: from }, data });
     const next = await tx.toolRequest.findUniqueOrThrow({ where: { id } });

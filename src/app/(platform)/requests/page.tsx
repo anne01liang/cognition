@@ -59,7 +59,7 @@ export default async function MyRequestsPage() {
       <RequestTable rows={mine} />
       {approvals ? (
         <div className="space-y-2">
-          <h2 className="text-lg font-semibold">Awaiting approval</h2>
+          <h2 className="text-lg font-semibold">Awaiting approval or build start</h2>
           <RequestTable rows={approvals} />
         </div>
       ) : null}

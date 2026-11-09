@@ -168,7 +168,7 @@ export const listToolRequests = defineAction({
   audit: false,
   handler: async ({ input, session, tx }) => {
     if (input.scope === "approvals" && !hasPermission(session, "tools:approve")) throw new ForbiddenError("tools:approve");
-    const where = input.scope === "mine" ? { requestedById: session.userId } : { status: "SUBMITTED" as const };
+    const where = input.scope === "mine" ? { requestedById: session.userId } : { status: { in: ["SUBMITTED" as const, "APPROVED" as const] } }; // APPROVED = build not started yet (retryable)
     return (tx as FullTx).toolRequest.findMany({
       where,
       orderBy: { createdAt: "desc" },

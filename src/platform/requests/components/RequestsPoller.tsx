@@ -17,13 +17,18 @@ export function RequestsPoller({ ids }: { ids: string[] }) {
     let timer: ReturnType<typeof setTimeout>;
     const round = async () => {
       let changed = false;
-      for (const id of key.split(",")) {
-        if (stopped) return;
-        const res = await refreshToolRequest({ id });
-        changed ||= res.ok && res.data.changed;
+      try {
+        for (const id of key.split(",")) {
+          if (stopped) return;
+          const res = await refreshToolRequest({ id });
+          changed ||= res.ok && res.data.changed;
+        }
+      } catch {
+        // A failed round (e.g. network) is retried on the next one.
+      } finally {
+        if (!stopped) timer = setTimeout(round, 5000);
       }
       if (changed && !stopped) router.refresh();
-      if (!stopped) timer = setTimeout(round, 5000);
     };
     timer = setTimeout(round, 5000);
     return () => {

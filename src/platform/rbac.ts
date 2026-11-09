@@ -5,9 +5,9 @@
  *   (or a platform namespace: audit, pii).
  * - Apps reference permissions via src/apps/<app>/permissions.ts, which must
  *   only re-export strings declared here (enforced by tests).
- * - Changes to this file require @security-team review (CODEOWNERS), and
+ * - Changes to this file require security-reviewer review (CODEOWNERS), and
  *   sensitive permission changes trigger the `needs-security-review` label.
- * - Admin is NOT a superuser: it can read/verify audit, nothing else.
+ * - Admin is NOT a superuser: it can read/verify audit and request/approve new tools, nothing else.
  */
 
 export const PERMISSIONS = [
@@ -15,6 +15,8 @@ export const PERMISSIONS = [
   "audit:read",
   "audit:verify",
   "pii:reveal",
+  "tools:request",
+  "tools:approve",
   // ---- app: kyc ----
   "kyc:read",
   "kyc:create",
@@ -35,8 +37,8 @@ export const ROLES = {
   kyc_approver: ["kyc:read", "kyc:approve", "pii:reveal"],
   support: ["kyc:read", "refund:read", "refund:request"],
   finance_approver: ["refund:read", "refund:approve", "pii:reveal"],
-  ops_lead: ["kyc:read", "refund:read", "kyc:escalation", "refund:escalation"],
-  admin: ["audit:read", "audit:verify"],
+  ops_lead: ["kyc:read", "refund:read", "kyc:escalation", "refund:escalation", "tools:request"],
+  admin: ["audit:read", "audit:verify", "tools:request", "tools:approve"],
 } as const satisfies Record<string, readonly Permission[]>;
 
 export type Role = keyof typeof ROLES;

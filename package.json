@@ -12,6 +12,7 @@
     "check:actions": "tsx scripts/check-actions.ts",
     "check:schema": "tsx scripts/check-schema.ts",
     "check:audit": "tsx scripts/check-npm-audit.ts",
+    "check:tool-request-scope": "tsx scripts/check-tool-request-scope.ts",
     "check": "npm run typecheck && npm run lint && npm run check:actions && npm run check:schema && npm run test",
     "db:migrate": "prisma migrate dev",
     "seed": "prisma migrate deploy && tsx prisma/seed.ts",
@@ -25,6 +26,7 @@
     "@radix-ui/react-slot": "^1.5.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "js-yaml": "^4.3.2",
     "next": "^14.2.35",
     "next-auth": "^4.24.15",
     "react": "^18.3.1",
@@ -35,6 +37,7 @@
   },
   "devDependencies": {
     "@types/eslint": "^8.56.12",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.19.43",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",

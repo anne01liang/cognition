@@ -1,15 +1,16 @@
-# @security-team must approve changes to anything that defines what is
-# allowed, how data is stored, or how guardrails work. Enable
-# "Require review from Code Owners" in branch protection for this to bite.
+# @anne01liang (the security reviewer) must approve every change outside src/apps/** (platform, schema, routes, config, CI,
+# dependencies, docs), plus the app files that define access. Later lines override earlier ones.
+# This repo is owned by a personal account, so GitHub teams don't exist: list the reviewers by login.
+# In an org, replace @anne01liang with a security team that has write access.
+# Only enforced with "Require review from Code Owners" in branch protection (README "Branch protection").
 
-/prisma/                          @security-team
-/src/platform/                    @security-team
-/src/apps/*/permissions.ts        @security-team
-/src/apps/*/manifest.ts           @security-team
-/src/apps/registry.ts             @security-team
-/scripts/                         @security-team
-/security/                        @security-team
-/.github/                         @security-team
-/.eslintrc.json                   @security-team
-/package.json                     @security-team
-/package-lock.json                @security-team
+*                                 @anne01liang
+
+# App code is owned by its team (no owners listed = no mandatory code-owner review) ...
+# HIGH-risk tool-request PRs still need a security reviewer: the `assess` check (risk-label.yml) enforces it.
+/src/apps/
+
+# ... except the files that define what an app may do.
+/src/apps/*/permissions.ts        @anne01liang
+/src/apps/*/manifest.ts           @anne01liang
+/src/apps/registry.ts             @anne01liang

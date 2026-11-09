@@ -14,7 +14,13 @@ describe("rbac", () => {
   });
 
   it("admin is not a superuser", () => {
-    expect(ROLES.admin).toEqual(["audit:read", "audit:verify"]);
+    expect(ROLES.admin).toEqual(["audit:read", "audit:verify", "tools:request", "tools:approve"]);
+  });
+
+  it("tool requests: ops_lead and admin can request, only admin can approve", () => {
+    const holders = (p: string) => Object.entries(ROLES).filter(([, ps]) => (ps as readonly string[]).includes(p)).map(([r]) => r).sort();
+    expect(holders("tools:request")).toEqual(["admin", "ops_lead"]);
+    expect(holders("tools:approve")).toEqual(["admin"]);
   });
 
   it("unknown roles grant nothing", () => {

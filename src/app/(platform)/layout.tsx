@@ -33,6 +33,23 @@ export default async function PlatformLayout({ children }: { children: React.Rea
               </ul>
             </div>
           ))}
+          {hasPermission(session, "tools:request") ? (
+            <div>
+              <div className="mb-1 font-medium text-muted-foreground">Tool requests</div>
+              <ul className="space-y-1">
+                <li>
+                  <Link href="/requests" className="block rounded px-2 py-1 hover:bg-accent">
+                    My requests
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/requests/new" className="block rounded px-2 py-1 hover:bg-accent">
+                    Request a tool
+                  </Link>
+                </li>
+              </ul>
+            </div>
+          ) : null}
           {hasPermission(session, "audit:read") ? (
             <div>
               <div className="mb-1 font-medium text-muted-foreground">Admin</div>

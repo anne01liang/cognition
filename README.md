@@ -40,6 +40,9 @@ npm run check:audit     # npm audit --audit-level=high with expiring allowlist
 | PII reveal | `<MaskedField>` + `revealPii` (`src/platform/pii/actions.ts`) |
 | UI blocks | `src/components/platform/` (DataTable, DetailPanel, FormBuilder, StatusBadge) |
 | Apps | `src/apps/<app>/`, registered in `src/apps/registry.ts` |
+| Tool Requests (request → manifest → approval → Devin build) | `src/platform/requests/`, UI at `/requests` (`tools:request`, `tools:approve`) |
 | CI guardrails | `.github/workflows/ci.yml`, `.github/workflows/risk-label.yml`, `.github/CODEOWNERS`, `scripts/` |
+
+Tool Requests run in mock mode by default (`DEVIN_MODE=mock`, no key needed): an approved request simulates a ~30s Devin build with a fake PR URL. Set `DEVIN_API_KEY` (and `DEVIN_MODE=live`) to start real sessions via the v1 API.
 
 To build a new app follow **[ADDING_AN_APP.md](./ADDING_AN_APP.md)**.

@@ -112,3 +112,51 @@ model Refund {
 
   @@index([status])
 }
+
+// ===== platform: tool requests (src/platform/requests) =====
+
+enum ToolRequestStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  BUILDING
+  PR_OPEN
+  MERGED
+  FAILED
+}
+
+enum ToolRiskTier {
+  LOW
+  HIGH
+}
+
+/// A non-engineer's request for a new internal app. The validated manifest is built by a Devin session.
+model ToolRequest {
+  id              String            @id @default(cuid())
+  toolName        String
+  /// Team charged against the monthly ACU budget (src/platform/requests/config.ts).
+  team            String
+  status          ToolRequestStatus @default(DRAFT)
+  riskTier        ToolRiskTier
+  /// The structured request form as submitted (validated by toolRequestFormSchema).
+  form            Json
+  /// Validated, possibly hand-edited manifest (toolManifestSchema). This is what Devin builds.
+  manifestYaml    String
+  estimatedAcus   Int
+  requestedById   String
+  submittedById   String?
+  decidedById     String?
+  approvedAt      DateTime?
+  buildStartedAt  DateTime?
+  devinSessionId  String?
+  devinSessionUrl String?
+  prUrl           String?
+  acusUsed        Float?
+  lastError       String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([requestedById])
+  @@index([status])
+  @@index([team, approvedAt])
+}

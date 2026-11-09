@@ -9,8 +9,11 @@ import type { SessionSnapshot } from "./devin";
 export type ToolRequestRow = NonNullable<Awaited<ReturnType<FullTx["toolRequest"]["findUnique"]>>>;
 type BuildFields = Pick<ToolRequestRow, "status" | "prUrl" | "acusUsed" | "lastError">;
 
-/** Statuses whose estimate (or actual usage, if higher) counts against the team's monthly budget. */
-export const BUDGETED_STATUSES = ["APPROVED", "BUILDING", "PR_OPEN", "MERGED", "FAILED"] as const;
+/**
+ * Statuses whose estimate (or actual usage, if higher) counts against the team's monthly budget.
+ * FAILED counts only if a Devin session was actually started.
+ */
+export const BUDGETED_STATUSES = ["APPROVED", "BUILDING", "PR_OPEN", "MERGED"] as const;
 
 /** Fields safe for audit before/after. */
 export const auditSnapshot = (r: ToolRequestRow) => ({
@@ -35,7 +38,11 @@ export function canSee(session: AppSession, r: Pick<ToolRequestRow, "requestedBy
 
 export async function teamAcusThisMonth(tx: FullTx, team: string, now = new Date()): Promise<number> {
   const rows = await tx.toolRequest.findMany({
-    where: { team, approvedAt: { gte: monthStart(now) }, status: { in: [...BUDGETED_STATUSES] } },
+    where: {
+      team,
+      approvedAt: { gte: monthStart(now) },
+      OR: [{ status: { in: [...BUDGETED_STATUSES] } }, { status: "FAILED", devinSessionId: { not: null } }],
+    },
     select: { estimatedAcus: true, acusUsed: true },
   });
   return rows.reduce((n, r) => n + Math.max(r.estimatedAcus, r.acusUsed ?? 0), 0);

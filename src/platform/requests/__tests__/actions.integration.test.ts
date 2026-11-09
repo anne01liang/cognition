@@ -139,6 +139,16 @@ describe.skipIf(!hasTestDb)("tool requests (integration)", async () => {
     ]);
   });
 
+  it("budget: FAILED requests count only if a Devin session was started", async () => {
+    const { teamAcusThisMonth } = await import("../lifecycle");
+    const base = { toolName: "Budget probe", riskTier: "LOW" as const, form: {}, manifestYaml: "x", requestedById: "probe", approvedAt: new Date(), status: "FAILED" as const };
+    const usedBefore = await db.$transaction((tx) => teamAcusThisMonth(tx, "probe-team"));
+    await db.toolRequest.create({ data: { ...base, team: "probe-team", estimatedAcus: 7 } });
+    expect(await db.$transaction((tx) => teamAcusThisMonth(tx, "probe-team"))).toBe(usedBefore);
+    await db.toolRequest.create({ data: { ...base, team: "probe-team", estimatedAcus: 9, devinSessionId: "mock-x", acusUsed: 12 } });
+    expect(await db.$transaction((tx) => teamAcusThisMonth(tx, "probe-team"))).toBe(usedBefore + 12);
+  });
+
   it("hides other people's requests from requesters", async () => {
     as("someone", ["ops_lead"]);
     expect(await actions.getToolRequest({ id: buildingId })).toMatchObject({ ok: false, error: { code: "NOT_FOUND" } });

@@ -20,12 +20,19 @@ export default async function ToolRequestPage({ params }: { params: { id: string
   return (
     <div className="space-y-6">
       <ol className="flex flex-wrap gap-2 text-xs">
-        {[...LIFECYCLE, ...(r.status === "FAILED" ? ["FAILED"] : [])].map((s) => (
+        {[...LIFECYCLE.flatMap((s) => (s === "BUILDING" && r.status === "NEEDS_INPUT" ? [s, "NEEDS_INPUT"] : [s])), ...(r.status === "FAILED" ? ["FAILED"] : [])].map((s) => (
           <li key={s} className={s === r.status ? "font-semibold" : "text-muted-foreground"}>
             {s === r.status ? <StatusBadge status={s} /> : s.replace("_", " ")}
           </li>
         ))}
       </ol>
+      {r.status === "NEEDS_INPUT" && r.devinSessionUrl ? (
+        <p role="status" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          The Devin session is waiting for input.{" "}
+          <a className="font-medium underline" href={r.devinSessionUrl} target="_blank" rel="noreferrer">Open the session to answer</a>; this page keeps polling and
+          picks up the build when it continues.
+        </p>
+      ) : null}
       <DetailPanel
         title={r.toolName}
         actions={<StatusBadge status={r.riskTier} />}

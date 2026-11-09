@@ -8,6 +8,7 @@ const VARIANTS: Record<string, BadgeProps["variant"]> = {
   ESCALATED: "info",
   SUBMITTED: "warning",
   BUILDING: "info",
+  NEEDS_INPUT: "warning",
   PR_OPEN: "info",
   MERGED: "success",
   FAILED: "destructive",

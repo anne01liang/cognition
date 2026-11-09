@@ -202,6 +202,26 @@ describe.skipIf(!hasTestDb)("tool requests (integration)", async () => {
     ]);
   });
 
+  it("mock NEEDS_INPUT: refresh moves BUILDING -> NEEDS_INPUT -> BUILDING, audits it, and My Requests lists it with the session link", async () => {
+    olivia();
+    const q = await db.toolRequest.create({
+      data: {
+        toolName: "Question demo", team: "probe-input", riskTier: "LOW", form: {}, manifestYaml: "x", estimatedAcus: 5, requestedById: "olivia",
+        approvedAt: new Date(), status: "BUILDING", devinSessionId: "mock-q1", devinSessionUrl: "https://app.devin.ai/sessions/mock-q1", buildStartedAt: new Date(Date.now() - 6_000),
+      },
+    });
+    expect(await actions.refreshToolRequest({ id: q.id })).toMatchObject({ ok: true, data: { status: "NEEDS_INPUT", changed: true } });
+    const mine = await actions.listToolRequests({ scope: "mine" });
+    expect(mine.ok && mine.data.find((r) => r.id === q.id)).toMatchObject({ status: "NEEDS_INPUT", devinSessionUrl: "https://app.devin.ai/sessions/mock-q1" });
+    await db.toolRequest.update({ where: { id: q.id }, data: { buildStartedAt: new Date(Date.now() - 21_000) } });
+    expect(await actions.refreshToolRequest({ id: q.id })).toMatchObject({ ok: true, data: { status: "BUILDING", changed: true } });
+    const statusEvents = (await audits(q.id)).filter((e) => e.action === "tool-request.status");
+    expect(statusEvents.map((e) => [(e.before as { status: string }).status, (e.after as { status: string }).status])).toEqual([
+      ["BUILDING", "NEEDS_INPUT"],
+      ["NEEDS_INPUT", "BUILDING"],
+    ]);
+  });
+
   it("budget: FAILED requests are free only if the session definitely never started", async () => {
     const { teamAcusThisMonth } = await import("../lifecycle");
     const base = { toolName: "Budget probe", riskTier: "LOW" as const, form: {}, manifestYaml: "x", requestedById: "probe", approvedAt: new Date(), status: "FAILED" as const };

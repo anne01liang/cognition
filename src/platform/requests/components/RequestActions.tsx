@@ -11,7 +11,7 @@ export function RequestActions({ id, status, canSubmit, canApprove }: { id: stri
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [reason, setReason] = useState("");
-  const building = status === "BUILDING" || status === "PR_OPEN";
+  const building = status === "BUILDING" || status === "NEEDS_INPUT" || status === "PR_OPEN";
 
   const run = (fn: () => Promise<{ ok: boolean; error?: { message: string } }>) =>
     startTransition(async () => {

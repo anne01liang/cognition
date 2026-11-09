@@ -33,7 +33,15 @@ function RequestTable({ rows }: { rows: Extract<Awaited<ReturnType<typeof listTo
             </TableCell>
             <TableCell><StatusBadge status={r.status} /></TableCell>
             <TableCell><StatusBadge status={r.riskTier} /></TableCell>
-            <TableCell>{r.devinSessionUrl ? <a className="underline" href={r.devinSessionUrl} target="_blank" rel="noreferrer">session</a> : "—"}</TableCell>
+            <TableCell>
+              {r.devinSessionUrl ? (
+                <a className={r.status === "NEEDS_INPUT" ? "font-medium text-amber-700 underline" : "underline"} href={r.devinSessionUrl} target="_blank" rel="noreferrer">
+                  {r.status === "NEEDS_INPUT" ? "Answer in session" : "session"}
+                </a>
+              ) : (
+                "—"
+              )}
+            </TableCell>
             <TableCell>{r.prUrl ? <a className="underline" href={r.prUrl} target="_blank" rel="noreferrer">PR</a> : "—"}</TableCell>
             <TableCell>{r.acusUsed ?? "—"} / {r.estimatedAcus}</TableCell>
             <TableCell>{r.createdAt.toISOString().slice(0, 16).replace("T", " ")}</TableCell>
@@ -47,6 +55,7 @@ function RequestTable({ rows }: { rows: Extract<Awaited<ReturnType<typeof listTo
 export default async function MyRequestsPage() {
   const session = await requirePagePermission("tools:request");
   const mine = unwrap(await listToolRequests({ scope: "mine" }));
+  const waiting = mine.filter((r) => r.status === "NEEDS_INPUT" && r.devinSessionUrl);
   const approvals = hasPermission(session, "tools:approve") ? unwrap(await listToolRequests({ scope: "approvals" })) : null;
   return (
     <div className="space-y-8">
@@ -56,6 +65,16 @@ export default async function MyRequestsPage() {
           <Link href="/requests/new">Request a tool</Link>
         </Button>
       </div>
+      {waiting.length > 0 ? (
+        <p role="status" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          Devin is waiting for input on {waiting.map((r, i) => (
+            <span key={r.id}>
+              {i > 0 ? ", " : ""}
+              <a className="font-medium underline" href={r.devinSessionUrl!} target="_blank" rel="noreferrer">{r.toolName}</a>
+            </span>
+          ))}. Open the session to answer; the build continues afterwards.
+        </p>
+      ) : null}
       <RequestTable rows={mine} />
       {approvals ? (
         <div className="space-y-2">

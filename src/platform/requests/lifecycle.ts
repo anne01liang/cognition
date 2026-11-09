@@ -13,7 +13,10 @@ type BuildFields = Pick<ToolRequestRow, "status" | "prUrl" | "acusUsed" | "lastE
  * Statuses whose estimate (or actual usage, if higher) counts against the team's monthly budget.
  * A FAILED request is free only if its session definitely never started (no session id and acusUsed = 0).
  */
-export const BUDGETED_STATUSES = ["APPROVED", "BUILDING", "PR_OPEN", "MERGED", "FAILED"] as const;
+export const BUDGETED_STATUSES = ["APPROVED", "BUILDING", "NEEDS_INPUT", "PR_OPEN", "MERGED", "FAILED"] as const;
+
+/** Statuses whose Devin session is still polled. */
+export const POLLED_STATUSES: readonly string[] = ["BUILDING", "NEEDS_INPUT", "PR_OPEN"];
 
 /** Fields safe for audit before/after. */
 export const auditSnapshot = (r: ToolRequestRow) => ({
@@ -54,8 +57,9 @@ export async function teamAcusThisMonth(tx: FullTx, team: string, now = new Date
  * `transition` is false when only the ACU counter moved (not audited).
  */
 export function nextBuildState(r: BuildFields, s: SessionSnapshot): { data: BuildFields; transition: boolean } | null {
-  if (r.status !== "BUILDING" && r.status !== "PR_OPEN") return null;
-  const status = r.status === "PR_OPEN" && s.status === "BUILDING" ? "PR_OPEN" : s.status;
+  if (!POLLED_STATUSES.includes(r.status)) return null;
+  // Once a PR is open it stays the request's status, even if the session goes back to work or asks a question.
+  const status = r.status === "PR_OPEN" && (s.status === "BUILDING" || s.status === "NEEDS_INPUT") ? "PR_OPEN" : s.status;
   const data = { status, prUrl: s.prUrl ?? r.prUrl, acusUsed: s.acusUsed ?? r.acusUsed, lastError: s.error ?? r.lastError };
   const transition = data.status !== r.status || data.prUrl !== r.prUrl || data.lastError !== r.lastError;
   if (!transition && data.acusUsed === r.acusUsed) return null;

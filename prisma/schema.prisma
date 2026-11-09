@@ -120,6 +120,7 @@ enum ToolRequestStatus {
   SUBMITTED
   APPROVED
   BUILDING
+  NEEDS_INPUT
   PR_OPEN
   MERGED
   FAILED

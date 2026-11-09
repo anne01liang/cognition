@@ -72,6 +72,21 @@ describe("mock lifecycle", () => {
     expect(nextBuildState({ ...row, status: "PR_OPEN" } as never, { status: "BUILDING", prUrl: null, acusUsed: null, error: null })).toBeNull();
     expect(nextBuildState({ ...row, status: "MERGED" } as never, mockSnapshot("mock-7", 0, { name: "x" }))).toBeNull();
   });
+
+  it('"question" names wait in NEEDS_INPUT, then resume and finish; an open PR stays PR_OPEN', () => {
+    let row = { status: "BUILDING" as string, prUrl: null as string | null, acusUsed: null as number | null, lastError: null as string | null };
+    const seen: string[] = [];
+    for (const t of [0, 5_000, 10_000, 20_000, 25_000, 30_000, 45_000]) {
+      const step = nextBuildState(row as never, mockSnapshot("mock-8", t, { name: "Question demo" }));
+      if (step) {
+        if (step.transition) seen.push(step.data.status);
+        row = step.data;
+      }
+    }
+    expect(seen).toEqual(["NEEDS_INPUT", "BUILDING", "PR_OPEN", "MERGED"]);
+    const prOpen = { ...row, status: "PR_OPEN" };
+    expect(nextBuildState(prOpen as never, { status: "NEEDS_INPUT", prUrl: null, acusUsed: null, error: null })).toBeNull();
+  });
 });
 
 describe("live mode", () => {
@@ -80,7 +95,7 @@ describe("live mode", () => {
     expect(mapLiveSession({ status: "blocked", status_enum: "blocked", pull_request: { url: "https://github.com/o/r/pull/1" } })).toMatchObject({ status: "PR_OPEN", prUrl: "https://github.com/o/r/pull/1" });
     expect(mapLiveSession({ status: "expired", status_enum: "expired" }).status).toBe("FAILED");
     expect(mapLiveSession({ status: "finished", status_enum: "finished" }).status).toBe("FAILED");
-    expect(mapLiveSession({ status: "suspended", status_enum: "finished", pull_request: null }).status).toBe("BUILDING");
+    expect(mapLiveSession({ status: "suspended", status_enum: "finished", pull_request: null }).status).toBe("NEEDS_INPUT");
   });
 
   it("calls POST /v1/sessions with the bearer key and never puts the key in errors", async () => {

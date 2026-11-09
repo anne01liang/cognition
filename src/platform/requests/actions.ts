@@ -2,7 +2,7 @@
 
 /**
  * Tool Requests server actions (platform feature, not an app).
- * Lifecycle: DRAFT -> SUBMITTED -> APPROVED -> BUILDING -> PR_OPEN -> MERGED | FAILED.
+ * Lifecycle: DRAFT -> SUBMITTED -> APPROVED -> BUILDING (<-> NEEDS_INPUT) -> PR_OPEN -> MERGED | FAILED.
  * The approval gate reuses the platform maker-checker helper (four-eyes).
  */
 import { z } from "zod";

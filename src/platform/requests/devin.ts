@@ -11,7 +11,7 @@ import "server-only";
  * DEVIN_MODE=mock (default when DEVIN_API_KEY is unset) simulates the lifecycle over ~30s.
  */
 
-export type BuildStatus = "BUILDING" | "PR_OPEN" | "MERGED" | "FAILED";
+export type BuildStatus = "BUILDING" | "NEEDS_INPUT" | "PR_OPEN" | "MERGED" | "FAILED";
 export interface CreatedSession {
   sessionId: string;
   url: string;
@@ -69,10 +69,17 @@ export function buildPrompt({ id, name, manifestYaml }: PromptInput): string {
 
 // ---------------------------------------------------------------- mock
 
-export const MOCK_TIMELINE = { prOpenAfterMs: 15_000, mergedAfterMs: 30_000 } as const;
+export const MOCK_TIMELINE = { prOpenAfterMs: 15_000, mergedAfterMs: 30_000, needsInputAtMs: 5_000, needsInputForMs: 15_000 } as const;
 
-/** Pure: mock lifecycle at `elapsedMs` since the build started. Names containing "fail" fail at 15s (for demos). */
-export function mockSnapshot(sessionId: string, elapsedMs: number, opts: { name: string }): SessionSnapshot {
+/**
+ * Pure: mock lifecycle at `elapsedMs` since the build started. For demos, names containing "fail" fail at 15s, and
+ * names containing "question" are NEEDS_INPUT from 5s to 20s (as if someone then answered) and finish 15s later.
+ */
+export function mockSnapshot(sessionId: string, at: number, opts: { name: string }): SessionSnapshot {
+  const { needsInputAtMs: askAt, needsInputForMs: waitFor } = MOCK_TIMELINE;
+  const asks = /question/i.test(opts.name);
+  if (asks && at >= askAt && at < askAt + waitFor) return { status: "NEEDS_INPUT", prUrl: null, acusUsed: askAt / 2000, error: null };
+  const elapsedMs = asks && at >= askAt + waitFor ? at - waitFor : at;
   const acusUsed = Math.round(Math.min(elapsedMs, MOCK_TIMELINE.mergedAfterMs) / 1000) / 2;
   const prNumber = 1000 + (parseInt(sessionId.replace(/\D/g, "").slice(-3) || "0", 10) % 1000);
   const prUrl = `https://github.com/example-org/internal-tools/pull/${prNumber}`;
@@ -113,7 +120,7 @@ export function mapLiveSession(s: V1GetSession): SessionSnapshot {
   const prUrl = s.pull_request?.url ?? null;
   if (prUrl) return { status: "PR_OPEN", prUrl, acusUsed: null, error: null };
   // A session asleep waiting for the user reports status "suspended" with status_enum "finished"; it can still resume and open a PR.
-  if (s.status === "suspended" || s.status === "blocked") return { status: "BUILDING", prUrl: null, acusUsed: null, error: null };
+  if (s.status === "suspended" || s.status === "blocked") return { status: "NEEDS_INPUT", prUrl: null, acusUsed: null, error: null };
   const st = s.status_enum ?? s.status;
   if (st === "expired") return { status: "FAILED", prUrl: null, acusUsed: null, error: "Devin session expired without opening a PR." };
   if (st === "finished") return { status: "FAILED", prUrl: null, acusUsed: null, error: "Devin session finished without opening a PR." };

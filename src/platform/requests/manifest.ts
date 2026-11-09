@@ -65,7 +65,13 @@ function checkConsistency(
 /** What a non-engineer fills in on /requests/new. */
 export const toolRequestFormSchema = z
   .object({
-    name: z.string().trim().min(3).max(60).regex(/^[A-Za-z][A-Za-z0-9 \-]+$/, "Letters, numbers, spaces and dashes only"),
+    name: z
+      .string()
+      .trim()
+      .min(3)
+      .max(60)
+      .regex(/^[A-Za-z][A-Za-z0-9 \-]+$/, "Letters, numbers, spaces and dashes only")
+      .refine((n) => slugify(n).length <= 60, "Too long once numbers are spelled out for the app id; shorten it"),
     purpose: z.string().trim().min(10, "Describe the purpose in a sentence or two").max(2000),
     primaryUsers: z.array(role).min(1, "Pick at least one primary role"),
     entities: z.array(entitySchema).min(1, "Add at least one entity").max(10),
@@ -82,7 +88,7 @@ export type RiskTier = (typeof RISK_TIERS)[number];
 /** The generated app manifest. This is what the Devin session is asked to build. */
 export const toolManifestSchema = z
   .object({
-    id: z.string().regex(/^[a-z][a-z-]{2,39}$/, "id is lowercase a-z and - only (it becomes src/apps/<id>)"),
+    id: z.string().regex(/^[a-z][a-z-]{2,59}$/, "id is lowercase a-z and - only (it becomes src/apps/<id>)"),
     name: z.string().min(3).max(60),
     purpose: z.string().min(10).max(2000),
     riskTier: z.enum(RISK_TIERS),
@@ -125,7 +131,7 @@ export function slugify(name: string): string {
     .trim()
     .toLowerCase()
     .replace(/[0-9]/g, (d) => `-${DIGIT_WORDS[Number(d)]}-`)
-    .replace(/[^a-z]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+    .replace(/[^a-z]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
 export function formToManifest(form: ToolRequestForm): ToolManifest {

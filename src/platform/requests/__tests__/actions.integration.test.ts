@@ -234,11 +234,11 @@ describe.skipIf(!hasTestDb)("tool requests (integration)", async () => {
     const b = await createSame();
     if (!a.ok || !b.ok) throw new Error("drafts do not reserve the name");
     expect(await actions.submitToolRequest({ id: a.data.id })).toMatchObject({ ok: true });
-    expect(await createSame()).toMatchObject({ ok: false, error: { code: "INVALID_INPUT", message: expect.stringContaining('("Reserved Name", SUBMITTED)') } });
+    expect(await createSame()).toMatchObject({ ok: false, error: { code: "INVALID_INPUT", message: "This tool name is reserved by another request in progress; pick another tool name." } });
     expect(await actions.submitToolRequest({ id: b.data.id })).toMatchObject({ ok: false, error: { code: "CONFLICT" } });
     for (const status of ["APPROVED", "BUILDING", "NEEDS_INPUT", "PR_OPEN"] as const) {
       await db.toolRequest.update({ where: { id: a.data.id }, data: { status } });
-      expect(await createSame()).toMatchObject({ ok: false, error: { message: expect.stringContaining(`("Reserved Name", ${status})`) } });
+      expect(await createSame()).toMatchObject({ ok: false, error: { message: expect.stringContaining("reserved by another request") } });
     }
     await db.toolRequest.update({ where: { id: a.data.id }, data: { status: "FAILED" } });
     expect(await actions.submitToolRequest({ id: b.data.id })).toMatchObject({ ok: true });

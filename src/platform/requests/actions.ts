@@ -41,13 +41,14 @@ async function nameConflict(tx: FullTx, appId: string, exceptRequestId?: string)
   if (appConflict) return appConflict;
   const active = await tx.toolRequest.findMany({
     where: { status: { in: [...RESERVING_STATUSES] }, ...(exceptRequestId ? { id: { not: exceptRequestId } } : {}) },
-    select: { toolName: true, status: true, manifestYaml: true },
+    select: { manifestYaml: true },
   });
-  const holder = active.find((r) => {
+  const taken = active.some((r) => {
     const p = parseManifestYaml(r.manifestYaml);
     return p.ok && p.manifest.id === appId;
   });
-  return holder ? `The tool name is already taken by another request ("${holder.toolName}", ${holder.status}); pick another tool name.` : null;
+  // Deliberately says nothing about the other request: requesters can't see each other's requests.
+  return taken ? "This tool name is reserved by another request in progress; pick another tool name." : null;
 }
 
 async function load(tx: FullTx, id: string, session: AppSession) {

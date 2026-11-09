@@ -79,7 +79,7 @@ export function RequestForm() {
       if (!form.success || !manifest?.ok) return;
       const res = await createToolRequest({ form: form.data, manifestYaml: shownYaml });
       if (res.ok) router.push(`/requests/${res.data.id}`);
-      else setServerError([res.error.message, ...Object.values(res.error.fieldErrors ?? {}).flat()].join(" "));
+      else setServerError([...new Set([res.error.message, ...Object.values(res.error.fieldErrors ?? {}).flat()])].join(" "));
     });
 
   return (

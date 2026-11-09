@@ -222,6 +222,25 @@ describe.skipIf(!hasTestDb)("tool requests (integration)", async () => {
     ]);
   });
 
+  it("two viewers of one request: when one poll saves the change first, both re-render to the server's status", async () => {
+    olivia();
+    const { pollShownStatuses } = await import("../poll");
+    const q = await db.toolRequest.create({
+      data: {
+        toolName: "Question two viewers", team: "probe-input", riskTier: "LOW", form: {}, manifestYaml: "x", estimatedAcus: 5, requestedById: "olivia",
+        approvedAt: new Date(), status: "NEEDS_INPUT", devinSessionId: "mock-q2", devinSessionUrl: "https://app.devin.ai/sessions/mock-q2", buildStartedAt: new Date(Date.now() - 21_000),
+      },
+    });
+    const viewerA = { [q.id]: "NEEDS_INPUT" };
+    const viewerB = { [q.id]: "NEEDS_INPUT" };
+    expect(await pollShownStatuses(viewerA, actions.refreshToolRequest)).toBe(true); // A's poll saves NEEDS_INPUT -> BUILDING
+    expect((await db.toolRequest.findUniqueOrThrow({ where: { id: q.id } })).status).toBe("BUILDING");
+    expect(await actions.refreshToolRequest({ id: q.id })).toMatchObject({ ok: true, data: { status: "BUILDING", changed: false } });
+    expect(await pollShownStatuses(viewerB, actions.refreshToolRequest)).toBe(true); // B's poll changed nothing, but B still re-renders
+    // After re-rendering, both show BUILDING and stop refreshing the page.
+    expect(await pollShownStatuses({ [q.id]: "BUILDING" }, actions.refreshToolRequest)).toBe(false);
+  });
+
   it("budget: FAILED requests are free only if the session definitely never started", async () => {
     const { teamAcusThisMonth } = await import("../lifecycle");
     const base = { toolName: "Budget probe", riskTier: "LOW" as const, form: {}, manifestYaml: "x", requestedById: "probe", approvedAt: new Date(), status: "FAILED" as const };

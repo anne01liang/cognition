@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { approveToolRequest, refreshToolRequest, retryToolRequestBuild, submitToolRequest } from "../actions";
+import { pollShownStatuses } from "../poll";
 
 export function RequestActions({ id, status, canSubmit, canApprove }: { id: string; status: string; canSubmit: boolean; canApprove: boolean }) {
   const router = useRouter();
@@ -23,12 +24,25 @@ export function RequestActions({ id, status, canSubmit, canApprove }: { id: stri
 
   useEffect(() => {
     if (!building) return;
-    const t = setInterval(async () => {
-      const res = await refreshToolRequest({ id });
-      if (res.ok && res.data.changed) router.refresh();
-    }, 5000);
-    return () => clearInterval(t);
-  }, [building, id, router]);
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const round = async () => {
+      let stale = false;
+      try {
+        stale = await pollShownStatuses({ [id]: status }, refreshToolRequest, () => stopped);
+      } catch {
+        // Retried on the next round.
+      } finally {
+        if (!stopped) timer = setTimeout(round, 5000);
+      }
+      if (stale && !stopped) router.refresh();
+    };
+    timer = setTimeout(round, 5000);
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
+  }, [building, id, status, router]);
 
   return (
     <div className="space-y-2">

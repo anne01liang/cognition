@@ -76,7 +76,7 @@ export default async function MyRequestsPage() {
           ))}. Open the session to answer; the build continues afterwards.
         </p>
       ) : null}
-      <RequestsPoller ids={mine.filter((r) => ["BUILDING", "NEEDS_INPUT", "PR_OPEN"].includes(r.status)).map((r) => r.id)} />
+      <RequestsPoller requests={mine.filter((r) => ["BUILDING", "NEEDS_INPUT", "PR_OPEN"].includes(r.status))} />
       <RequestTable rows={mine} />
       {approvals ? (
         <div className="space-y-2">

@@ -3,32 +3,30 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { refreshToolRequest } from "../actions";
+import { pollShownStatuses } from "../poll";
 
 /**
- * Polls the Devin sessions of the listed requests and re-renders the page when one changes status.
+ * Polls the Devin sessions of the listed requests and re-renders the page when the server's status differs from the one shown.
  * One request at a time, and the next round starts 5s after the previous one finished, so polls never overlap.
  */
-export function RequestsPoller({ ids }: { ids: string[] }) {
+export function RequestsPoller({ requests }: { requests: { id: string; status: string }[] }) {
   const router = useRouter();
-  const key = ids.join(",");
+  const key = JSON.stringify(requests.map((r) => [r.id, r.status]));
   useEffect(() => {
-    if (!key) return;
+    const shown: Record<string, string> = Object.fromEntries(JSON.parse(key));
+    if (Object.keys(shown).length === 0) return;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
     const round = async () => {
-      let changed = false;
+      let stale = false;
       try {
-        for (const id of key.split(",")) {
-          if (stopped) return;
-          const res = await refreshToolRequest({ id });
-          changed ||= res.ok && res.data.changed;
-        }
+        stale = await pollShownStatuses(shown, refreshToolRequest, () => stopped);
       } catch {
         // A failed round (e.g. network) is retried on the next one.
       } finally {
         if (!stopped) timer = setTimeout(round, 5000);
       }
-      if (changed && !stopped) router.refresh();
+      if (stale && !stopped) router.refresh();
     };
     timer = setTimeout(round, 5000);
     return () => {

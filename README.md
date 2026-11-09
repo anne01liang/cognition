@@ -13,6 +13,8 @@ npm run seed                    # applies migrations + seeds users and sample da
 npm run dev                     # http://localhost:3000 -> pick a user on /login
 ```
 
+`npm run seed` keeps existing tool requests, and the ACUs they use, because audit events reference them. For a clean reset, run `docker compose down -v` (this deletes the database volume), then `docker compose up -d && npm run seed`.
+
 Seed users: alice (kyc_analyst), bob (kyc_approver), carol (support),
 dan (finance_approver), erin (admin), olivia (ops_lead).
 

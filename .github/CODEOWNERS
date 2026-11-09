@@ -1,15 +1,13 @@
-# @security-team must approve changes to anything that defines what is
-# allowed, how data is stored, or how guardrails work. Enable
-# "Require review from Code Owners" in branch protection for this to bite.
+# @security-team must approve every change outside src/apps/** (platform, schema, routes, config, CI,
+# dependencies, docs), plus the app files that define access. Later lines override earlier ones.
+# Only enforced with "Require review from Code Owners" in branch protection (README "Branch protection").
 
-/prisma/                          @security-team
-/src/platform/                    @security-team
+*                                 @security-team
+
+# App code is owned by its team (no owners listed = no mandatory code-owner review) ...
+/src/apps/
+
+# ... except the files that define what an app may do.
 /src/apps/*/permissions.ts        @security-team
 /src/apps/*/manifest.ts           @security-team
 /src/apps/registry.ts             @security-team
-/scripts/                         @security-team
-/security/                        @security-team
-/.github/                         @security-team
-/.eslintrc.json                   @security-team
-/package.json                     @security-team
-/package-lock.json                @security-team

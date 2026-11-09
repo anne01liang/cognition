@@ -4,16 +4,17 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
-import { decideRefund } from "../actions";
+import { decideRefund, resolveRefundEscalation } from "../actions";
 
-export function RefundDecision({ id, allowEscalate }: { id: string; allowEscalate: boolean }) {
+export function RefundDecision({ id, mode }: { id: string; mode: "decide" | "resolve" }) {
   const router = useRouter();
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const decide = (decision: "APPROVE" | "REJECT" | "ESCALATE") =>
     start(async () => {
-      const res = await decideRefund({ id, decision, reason });
+      const res =
+        mode === "decide" ? await decideRefund({ id, decision, reason }) : await resolveRefundEscalation({ id, decision: decision === "ESCALATE" ? "REJECT" : decision, reason });
       if (res.ok) router.refresh();
       else setError(res.error.message);
     });
@@ -23,7 +24,7 @@ export function RefundDecision({ id, allowEscalate }: { id: string; allowEscalat
       <div className="flex gap-2">
         <Button disabled={pending} onClick={() => decide("APPROVE")}>Approve</Button>
         <Button variant="destructive" disabled={pending} onClick={() => decide("REJECT")}>Reject</Button>
-        {allowEscalate ? <Button variant="outline" disabled={pending} onClick={() => decide("ESCALATE")}>Escalate</Button> : null}
+        {mode === "decide" ? <Button variant="outline" disabled={pending} onClick={() => decide("ESCALATE")}>Escalate</Button> : null}
       </div>
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
     </div>

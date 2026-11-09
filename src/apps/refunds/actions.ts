@@ -2,12 +2,12 @@
 
 import { defineAction } from "@/platform/action";
 import { decideApproval } from "@/platform/approval";
-import { ConflictError, ForbiddenError, NotFoundError } from "@/platform/errors";
+import { ConflictError, NotFoundError } from "@/platform/errors";
 import { maskValue } from "@/platform/mask";
 import { paging } from "@/platform/table";
 import type { AppTx } from "@/platform/types";
 import { REFUND } from "./permissions";
-import { decideRefundSchema, listRefundsSchema, refundIdSchema, requestRefundSchema } from "./schemas";
+import { decideRefundSchema, listRefundsSchema, refundIdSchema, requestRefundSchema, resolveRefundEscalationSchema } from "./schemas";
 
 type RefundRow = NonNullable<Awaited<ReturnType<AppTx["refund"]["findUnique"]>>>;
 
@@ -24,7 +24,8 @@ function auditView(r: RefundRow) {
   };
 }
 
-const publicView = (r: RefundRow) => ({ ...r, accountNumber: maskValue(r.accountNumber) });
+/** What actions return: @pii fields masked; reveal goes through revealPii (audited). */
+const publicView = (r: RefundRow) => ({ ...r, customerName: maskValue(r.customerName), accountNumber: maskValue(r.accountNumber) });
 
 export const listRefunds = defineAction({
   permission: REFUND.read,
@@ -70,15 +71,33 @@ export const decideRefund = defineAction({
   handler: async ({ input, session, tx, recordAudit }) => {
     const before = await tx.refund.findUnique({ where: { id: input.id } });
     if (!before) throw new NotFoundError("Refund");
-    if (before.status === "ESCALATED" && !session.permissions.has(REFUND.escalation)) throw new ForbiddenError(REFUND.escalation);
+    if (before.status !== "PENDING") throw new ConflictError("Only PENDING refunds can be decided here.");
     const next = decideApproval(before, input.decision, session.userId);
-    const { count } = await tx.refund.updateMany({
-      where: { id: before.id, status: before.status },
-      data: { ...next, decisionReason: input.reason },
-    });
-    if (count !== 1) throw new ConflictError("This refund was changed by someone else.");
-    const after = (await tx.refund.findUnique({ where: { id: before.id } }))!;
+    const after = await updateIfStatus(tx, before, { ...next, decisionReason: input.reason });
     await recordAudit({ entityId: before.id, before: auditView(before), after: auditView(after), reason: input.reason });
     return { id: after.id, status: after.status };
   },
 });
+
+/** ESCALATED refunds are resolved by holders of refund:escalation (ops_lead), still four-eyes. */
+export const resolveRefundEscalation = defineAction({
+  permission: REFUND.escalation,
+  input: resolveRefundEscalationSchema,
+  audit: { action: "refund.resolve_escalation", entityType: "Refund" },
+  handler: async ({ input, session, tx, recordAudit }) => {
+    const before = await tx.refund.findUnique({ where: { id: input.id } });
+    if (!before) throw new NotFoundError("Refund");
+    if (before.status !== "ESCALATED") throw new ConflictError("Only ESCALATED refunds can be resolved here.");
+    const next = decideApproval(before, input.decision, session.userId);
+    const after = await updateIfStatus(tx, before, { ...next, decisionReason: input.reason });
+    await recordAudit({ entityId: before.id, before: auditView(before), after: auditView(after), reason: input.reason });
+    return { id: after.id, status: after.status };
+  },
+});
+
+/** Optimistic concurrency: only update if nobody changed the status meanwhile. */
+async function updateIfStatus(tx: AppTx, before: RefundRow, data: Partial<Pick<RefundRow, "status" | "decidedById" | "decisionReason">>) {
+  const { count } = await tx.refund.updateMany({ where: { id: before.id, status: before.status }, data });
+  if (count !== 1) throw new ConflictError("This refund was changed by someone else. Reload and try again.");
+  return (await tx.refund.findUnique({ where: { id: before.id } }))!;
+}

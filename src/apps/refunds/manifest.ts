@@ -13,6 +13,10 @@ export const refundsApp = defineApp({
   ],
   pii: {
     Refund: {
+      customerName: {
+        readPermission: REFUND.read,
+        load: async (tx, id) => (await tx.refund.findUnique({ where: { id }, select: { customerName: true } }))?.customerName ?? null,
+      },
       accountNumber: {
         readPermission: REFUND.read,
         load: async (tx, id) => (await tx.refund.findUnique({ where: { id }, select: { accountNumber: true } }))?.accountNumber ?? null,

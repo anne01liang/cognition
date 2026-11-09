@@ -15,23 +15,25 @@ export default async function RefundDetailPage({ params }: { params: { id: strin
   if (!res.ok) notFound();
   const r = res.data;
   const notSubmitter = r.submittedById !== session.userId;
-  const canDecide =
-    notSubmitter &&
-    ((r.status === "PENDING" && hasPermission(session, REFUND.approve)) ||
-      (r.status === "ESCALATED" && hasPermission(session, REFUND.approve) && hasPermission(session, REFUND.escalation)));
+  const mode =
+    notSubmitter && r.status === "PENDING" && hasPermission(session, REFUND.approve)
+      ? "decide"
+      : notSubmitter && r.status === "ESCALATED" && hasPermission(session, REFUND.escalation)
+        ? "resolve"
+        : null;
   return (
     <div className="space-y-4">
       <DetailPanel
         title={<span className="flex items-center gap-3">Refund <StatusBadge status={r.status} /></span>}
         fields={[
-          { label: "Customer", value: r.customerName },
+          { label: "Customer", value: <MaskedField value={r.customerName} entityType="Refund" entityId={r.id} field="customerName" /> },
           { label: "Account number", value: <MaskedField value={r.accountNumber} entityType="Refund" entityId={r.id} field="accountNumber" /> },
           { label: "Amount", value: formatMoney(r.amountCents, r.currency) },
           { label: "Reason", value: r.reason },
           { label: "Decision reason", value: r.decisionReason },
         ]}
       />
-      {canDecide ? <RefundDecision id={r.id} allowEscalate={r.status === "PENDING"} /> : null}
+      {mode ? <RefundDecision id={r.id} mode={mode} /> : null}
     </div>
   );
 }

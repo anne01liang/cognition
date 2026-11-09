@@ -35,7 +35,7 @@ export default async function CaseListPage({ searchParams }: { searchParams: Rec
         rowHref={(r) => `/apps/kyc/${r.id}`}
         searchPlaceholder="Search customer or case id"
         columns={[
-          { key: "customerName", header: "Customer", sortable: true },
+          { key: "customerName", header: "Customer" },
           { key: "documentNumber", header: "Document" },
           { key: "country", header: "Country" },
           { key: "riskLevel", header: "Risk", sortable: true, cell: (r) => <StatusBadge status={r.riskLevel} /> },

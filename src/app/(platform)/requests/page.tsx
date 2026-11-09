@@ -3,6 +3,7 @@ import { unwrap } from "@/platform/action";
 import { hasPermission } from "@/platform/guard";
 import { requirePagePermission } from "@/platform/session";
 import { listToolRequests } from "@/platform/requests/actions";
+import { RequestsPoller } from "@/platform/requests/components/RequestsPoller";
 import { StatusBadge } from "@/components/platform/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -75,6 +76,7 @@ export default async function MyRequestsPage() {
           ))}. Open the session to answer; the build continues afterwards.
         </p>
       ) : null}
+      <RequestsPoller ids={mine.filter((r) => ["BUILDING", "NEEDS_INPUT", "PR_OPEN"].includes(r.status)).map((r) => r.id)} />
       <RequestTable rows={mine} />
       {approvals ? (
         <div className="space-y-2">

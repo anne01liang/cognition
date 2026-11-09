@@ -131,6 +131,28 @@ describe.skipIf(!hasTestDb)("tool requests (integration)", async () => {
     expect((await audits(id)).map((e) => e.action).slice(-2)).toEqual(["tool-request.approve", "tool-request.build-start"]);
   });
 
+  it("a started session wins over a concurrent failed start", async () => {
+    frank();
+    const id = await create();
+    await actions.submitToolRequest({ id });
+    erin();
+    vi.stubEnv("DEVIN_MODE", "live");
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      // A concurrent retry's failure (e.g. HTTP 429) commits while this call is in flight.
+      await db.toolRequest.update({ where: { id }, data: { status: "FAILED", lastError: "Could not start Devin session: HTTP 429", acusUsed: 0 } });
+      return new Response(JSON.stringify({ session_id: "devin-race", url: "https://app.devin.ai/sessions/race" }));
+    }));
+    try {
+      expect(await actions.approveToolRequest({ id })).toMatchObject({ ok: true, data: { status: "BUILDING" } });
+    } finally {
+      vi.unstubAllGlobals();
+      vi.stubEnv("DEVIN_MODE", "mock");
+    }
+    expect(await db.toolRequest.findUniqueOrThrow({ where: { id } })).toMatchObject({ status: "BUILDING", devinSessionId: "devin-race", lastError: null, acusUsed: null });
+    const last = (await audits(id)).at(-1)!;
+    expect([(last.before as { status: string }).status, (last.after as { status: string }).status]).toEqual(["FAILED", "BUILDING"]);
+  });
+
   it("retries the build start for a request left in APPROVED", async () => {
     frank();
     const id = await create();
@@ -139,6 +161,8 @@ describe.skipIf(!hasTestDb)("tool requests (integration)", async () => {
     olivia();
     expect(await actions.retryToolRequestBuild({ id })).toMatchObject({ ok: false, error: { code: "FORBIDDEN" } });
     erin();
+    const queue = await actions.listToolRequests({ scope: "approvals" });
+    expect(queue.ok && queue.data.some((q) => q.id === id)).toBe(true);
     expect(await actions.retryToolRequestBuild({ id })).toMatchObject({ ok: true, data: { status: "BUILDING" } });
     expect(await db.toolRequest.findUniqueOrThrow({ where: { id } })).toMatchObject({ status: "BUILDING", devinSessionId: `mock-${id}` });
     expect((await audits(id)).map((e) => e.action).slice(-2)).toEqual(["tool-request.build-retry", "tool-request.build-start"]);

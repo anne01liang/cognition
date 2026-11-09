@@ -21,7 +21,7 @@ export async function startBuild(id: string, actorId: string): Promise<ToolReque
   let data;
   try {
     const s = await createDevinSession({ requestId: r.id, title: `tool-request/${r.id}: ${r.toolName}`, prompt, maxAcuLimit: r.estimatedAcus });
-    data = { status: "BUILDING" as const, devinSessionId: s.sessionId, devinSessionUrl: s.url, buildStartedAt: new Date() };
+    data = { status: "BUILDING" as const, devinSessionId: s.sessionId, devinSessionUrl: s.url, buildStartedAt: new Date(), lastError: null, acusUsed: null };
   } catch (err) {
     const message = err instanceof Error ? err.message.slice(0, 300) : "Unknown error";
     // acusUsed = 0 only when no session can exist; timeouts and 5xx keep the estimate charged to the budget.
@@ -30,15 +30,19 @@ export async function startBuild(id: string, actorId: string): Promise<ToolReque
   }
 
   return db.$transaction(async (tx) => {
-    const res = await tx.toolRequest.updateMany({ where: { id, status: "APPROVED" }, data });
+    // A started session beats a concurrent failed start (e.g. a retry got 429 while the original call succeeded),
+    // so the live session is never left untracked.
+    const from = data.status === "BUILDING" ? [{ status: "APPROVED" as const }, { status: "FAILED" as const, devinSessionId: null }] : [{ status: "APPROVED" as const }];
+    const before = await tx.toolRequest.findUniqueOrThrow({ where: { id } });
+    const res = await tx.toolRequest.updateMany({ where: { id, OR: from }, data });
     const next = await tx.toolRequest.findUniqueOrThrow({ where: { id } });
-    if (res.count !== 1) return next.status; // a concurrent start already recorded the outcome
+    if (res.count !== 1) return next.status; // a concurrent start already recorded a session
     await writeAuditEvent(tx, {
       actorId,
       action: "tool-request.build-start",
       entityType: "ToolRequest",
       entityId: id,
-      before: auditSnapshot(r),
+      before: auditSnapshot(before),
       after: { ...auditSnapshot(next), devinSessionUrl: next.devinSessionUrl, lastError: next.lastError },
     });
     return next.status;

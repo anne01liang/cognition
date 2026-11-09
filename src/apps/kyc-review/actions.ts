@@ -3,11 +3,13 @@
 import { defineAction } from "@/platform/action";
 import { decideApproval, submitForApproval } from "@/platform/approval";
 import { ActionError, ConflictError, NotFoundError } from "@/platform/errors";
+import { requirePermission } from "@/platform/guard";
 import { maskValue } from "@/platform/mask";
 import { paging } from "@/platform/table";
 import type { AppTx } from "@/platform/types";
 import { KYC_REVIEW } from "./permissions";
 import { isoDate, isSlaBreached, requiresSecondPerson } from "./rules";
+import { approverScope, reviewerScope, visibleCases } from "./scope";
 import { caseIdSchema, documentsSchema, finalizeSchema, listQueueSchema, recommendSchema } from "./schemas";
 
 type CaseRow = NonNullable<Awaited<ReturnType<AppTx["kycReviewCase"]["findUnique"]>>>;
@@ -64,11 +66,16 @@ export const listQueue = defineAction({
   input: listQueueSchema,
   audit: false,
   handler: async ({ input, session, tx }) => {
-    const scope =
-      input.view === "approvals"
-        ? { status: "PENDING" as const, NOT: { submittedById: session.userId } }
-        : { OR: [{ assignedTo: null }, { assignedTo: session.userId }], ...(input.status ? { status: input.status } : {}) };
-    const where = { ...scope, ...(input.country ? { country: input.country } : {}), ...(input.q ? { id: input.q } : {}) };
+    // Each view is a role's work list: analysts never see the approval queue and approvers never see the analyst queue.
+    const approvals = input.view === "approvals";
+    requirePermission(session, approvals ? KYC_REVIEW.approve : KYC_REVIEW.review);
+    const scope = approvals ? approverScope(session.userId) : reviewerScope(session.userId);
+    const filters = {
+      ...(input.status && !approvals ? { status: input.status } : {}),
+      ...(input.country ? { country: input.country } : {}),
+      ...(input.q ? { id: input.q } : {}),
+    };
+    const where = { AND: [scope, filters] };
     const [rows, total] = await Promise.all([
       tx.kycReviewCase.findMany({ where, ...paging(input) }),
       tx.kycReviewCase.count({ where }),
@@ -81,7 +88,11 @@ export const getCase = defineAction({
   permission: KYC_REVIEW.queue,
   input: caseIdSchema,
   audit: false,
-  handler: async ({ input, tx }) => publicView(await load(tx, input.id)),
+  handler: async ({ input, session, tx }) => {
+    const c = await tx.kycReviewCase.findFirst({ where: { AND: [{ id: input.id }, visibleCases(session)] } });
+    if (!c) throw new NotFoundError("KYC case");
+    return publicView(c);
+  },
 });
 
 export const claimCase = defineAction({

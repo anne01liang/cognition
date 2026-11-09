@@ -88,6 +88,7 @@ describe.skipIf(!hasTestDb)("kyc-review actions (integration)", async () => {
     expect(await finalizeCase({ id, decision: "REJECT", reason: "finalize myself" })).toMatchObject(FORBIDDEN);
     as("u-frank", ["kyc_analyst"]);
     expect(await finalizeCase({ id, decision: "REJECT", reason: "another analyst" })).toMatchObject(FORBIDDEN);
+    as("u-alice", ["kyc_analyst"]);
     expect(await getCase({ id })).toMatchObject({ ok: true, data: { status: "PENDING", decidedById: null } });
   });
 
@@ -121,6 +122,32 @@ describe.skipIf(!hasTestDb)("kyc-review actions (integration)", async () => {
     expect(await listQueue({ q: id })).toMatchObject({ ok: true, data: { total: 0 } });
     as("u-alice", ["kyc_analyst"]);
     expect(await listQueue({ q: id })).toMatchObject({ ok: true, data: { total: 1 } });
+  });
+
+  it("each queue view is limited to its role", async () => {
+    as("u-alice", ["kyc_analyst"]);
+    expect(await listQueue({ view: "approvals" })).toMatchObject(FORBIDDEN);
+    as("u-bob", ["kyc_approver"]);
+    expect(await listQueue({ view: "queue" })).toMatchObject(FORBIDDEN);
+    expect(await listQueue({ view: "approvals" })).toMatchObject({ ok: true });
+  });
+
+  it("case details and PII reveal are scoped to the user's queue", async () => {
+    const id = await newCase(30);
+    as("u-alice", ["kyc_analyst"]);
+    await claimCase({ id });
+    const reveal = () => revealPii({ entityType: "KycReviewCase", entityId: id, field: "ssn" });
+    as("u-frank", ["kyc_analyst"]);
+    expect(await getCase({ id })).toMatchObject({ ok: false, error: { code: "NOT_FOUND" } });
+    expect(await reveal()).toMatchObject({ ok: false, error: { code: "NOT_FOUND" } });
+    as("u-bob", ["kyc_approver"]);
+    expect(await getCase({ id })).toMatchObject({ ok: false, error: { code: "NOT_FOUND" } });
+    as("u-alice", ["kyc_analyst"]);
+    await recommendCase({ id, recommendation: "APPROVE", reason: "docs ok" });
+    as("u-bob", ["kyc_approver"]);
+    expect(await getCase({ id })).toMatchObject({ ok: true, data: { status: "PENDING" } });
+    expect(await reveal()).toEqual({ ok: true, data: { value: SSN } });
+    expect(await db.auditEvent.count({ where: { action: "pii.reveal", entityId: id } })).toBe(1);
   });
 
   it("every mutation produces an audit event with before/after and reason, and no raw PII", async () => {

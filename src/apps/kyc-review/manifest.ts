@@ -1,5 +1,6 @@
 import { defineApp } from "@/platform/app-manifest";
 import { KYC_REVIEW } from "./permissions";
+import { visibleCases } from "./scope";
 import { isoDate } from "./rules";
 
 export const kycReviewApp = defineApp({
@@ -16,18 +17,18 @@ export const kycReviewApp = defineApp({
     KycReviewCase: {
       customerName: {
         readPermission: KYC_REVIEW.queue,
-        load: async (tx, id) => (await tx.kycReviewCase.findUnique({ where: { id }, select: { customerName: true } }))?.customerName ?? null,
+        load: async (tx, id, viewer) => (await tx.kycReviewCase.findFirst({ where: { AND: [{ id }, visibleCases(viewer)] }, select: { customerName: true } }))?.customerName ?? null,
       },
       dateOfBirth: {
         readPermission: KYC_REVIEW.queue,
-        load: async (tx, id) => {
-          const row = await tx.kycReviewCase.findUnique({ where: { id }, select: { dateOfBirth: true } });
+        load: async (tx, id, viewer) => {
+          const row = await tx.kycReviewCase.findFirst({ where: { AND: [{ id }, visibleCases(viewer)] }, select: { dateOfBirth: true } });
           return row ? isoDate(row.dateOfBirth) : null;
         },
       },
       ssn: {
         readPermission: KYC_REVIEW.queue,
-        load: async (tx, id) => (await tx.kycReviewCase.findUnique({ where: { id }, select: { ssn: true } }))?.ssn ?? null,
+        load: async (tx, id, viewer) => (await tx.kycReviewCase.findFirst({ where: { AND: [{ id }, visibleCases(viewer)] }, select: { ssn: true } }))?.ssn ?? null,
       },
     },
   },

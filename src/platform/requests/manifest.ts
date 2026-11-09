@@ -117,8 +117,15 @@ export function permissionsFor(id: string, hasApproval: boolean) {
   return { read: `${ns}:read`, write: `${ns}:write`, approve: hasApproval ? `${ns}:approve` : null };
 }
 
+const DIGIT_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
+
+/** App ids are a-z and `-` only, so digits are spelled out ("Refunds 2" -> "refunds-two") to keep names distinct. */
 export function slugify(name: string): string {
-  return name.trim().toLowerCase().replace(/[^a-z]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[0-9]/g, (d) => `-${DIGIT_WORDS[Number(d)]}-`)
+    .replace(/[^a-z]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
 }
 
 export function formToManifest(form: ToolRequestForm): ToolManifest {

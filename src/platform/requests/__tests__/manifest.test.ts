@@ -62,6 +62,9 @@ describe("manifest: deterministic conversion", () => {
       for (const p of [m.permissions.read, m.permissions.write, m.permissions.approve]) expect(p).toMatch(/^[a-z_]+:[a-z_]+$/);
     }
     expect(formToManifest({ ...refundsForm(), name: "Desk booking notes" }).permissions.read).toBe("desk_booking_notes:read");
+    expect(formToManifest({ ...refundsForm(), name: "Refunds 2" }).id).toBe("refunds-two");
+    expect(formToManifest({ ...refundsForm(), name: "Refunds 3" }).id).toBe("refunds-three");
+    expect(formToManifest({ ...refundsForm(), name: "X 12" }).id).toBe("x-one-two");
   });
 
   it("summarizes in plain English", () => {

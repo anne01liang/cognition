@@ -28,6 +28,8 @@ interface DataTableProps<T> {
   filterValues?: Record<string, string | undefined>;
   filters?: Filter[];
   rowHref?: (row: T) => string;
+  /** Extra classes per row, e.g. to highlight SLA breaches. */
+  rowClassName?: (row: T) => string | undefined;
   searchPlaceholder?: string;
 }
 
@@ -36,7 +38,7 @@ interface DataTableProps<T> {
  * q, + filters), and the list action does pagination/filter/sort in SQL.
  */
 export function DataTable<T extends { id: string }>(props: DataTableProps<T>) {
-  const { basePath, columns, rows, total, params, filters = [], filterValues = {}, rowHref } = props;
+  const { basePath, columns, rows, total, params, filters = [], filterValues = {}, rowHref, rowClassName } = props;
   const pages = Math.max(1, Math.ceil(total / params.pageSize));
 
   const href = (overrides: Record<string, string | number | undefined>) => {
@@ -68,6 +70,11 @@ export function DataTable<T extends { id: string }>(props: DataTableProps<T>) {
             ))}
           </Select>
         ))}
+        {Object.entries(filterValues)
+          .filter(([name, value]) => value && !filters.some((f) => f.name === name))
+          .map(([name, value]) => (
+            <input key={name} type="hidden" name={name} value={value} />
+          ))}
         <input type="hidden" name="sort" value={params.sort} />
         <input type="hidden" name="dir" value={params.dir} />
         <Button type="submit" variant="outline">
@@ -105,7 +112,7 @@ export function DataTable<T extends { id: string }>(props: DataTableProps<T>) {
               </TableRow>
             ) : (
               rows.map((row) => (
-                <TableRow key={row.id}>
+                <TableRow key={row.id} className={rowClassName?.(row)}>
                   {columns.map((c, i) => {
                     const content = c.cell ? c.cell(row) : String((row as Record<string, unknown>)[c.key] ?? "");
                     return (

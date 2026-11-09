@@ -21,6 +21,8 @@ export const PERMISSIONS = [
   "kyc:review",
   "kyc:approve",
   "kyc:escalation",
+  // ---- app: kyc-review (shares the kyc namespace; kyc:review / kyc:approve above) ----
+  "kyc:queue",
   // ---- app: refunds ----
   "refund:read",
   "refund:request",
@@ -31,8 +33,8 @@ export const PERMISSIONS = [
 export type Permission = (typeof PERMISSIONS)[number];
 
 export const ROLES = {
-  kyc_analyst: ["kyc:read", "kyc:create", "kyc:review", "pii:reveal"],
-  kyc_approver: ["kyc:read", "kyc:approve", "pii:reveal"],
+  kyc_analyst: ["kyc:read", "kyc:create", "kyc:review", "kyc:queue", "pii:reveal"],
+  kyc_approver: ["kyc:read", "kyc:approve", "kyc:queue", "pii:reveal"],
   support: ["kyc:read", "refund:read", "refund:request"],
   finance_approver: ["refund:read", "refund:approve", "pii:reveal"],
   ops_lead: ["kyc:read", "refund:read", "kyc:escalation", "refund:escalation"],

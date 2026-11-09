@@ -6,6 +6,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { writeAuditEvent } from "../src/platform/audit";
+import { kycReviewSeedCases } from "./seed-kyc-review";
 
 const prisma = new PrismaClient();
 
@@ -53,6 +54,24 @@ async function main() {
       });
       await writeAuditEvent(tx, { actorId: ids.carol!, action: "seed.refund.request", entityType: "Refund", entityId: r.id, after: { status: r.status, amountCents: r.amountCents } });
     });
+  }
+
+  if ((await prisma.kycReviewCase.count()) === 0) {
+    await prisma.$transaction(
+      async (tx) => {
+        for (const data of kycReviewSeedCases({ analyst: ids.alice!, approver: ids.bob! })) {
+          const c = await tx.kycReviewCase.create({ data });
+          await writeAuditEvent(tx, {
+            actorId: c.submittedById ?? ids.alice!,
+            action: "seed.kyc-review.case.create",
+            entityType: "KycReviewCase",
+            entityId: c.id,
+            after: { status: c.status, riskScore: c.riskScore, assignedTo: c.assignedTo, recommendation: c.recommendation },
+          });
+        }
+      },
+      { timeout: 60_000 },
+    );
   }
 
   console.log(`Seeded ${USERS.length} users: ${USERS.map((u) => `${u.username} (${u.roles.join(",")})`).join(", ")}`);

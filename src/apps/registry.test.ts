@@ -47,7 +47,8 @@ describe("app registry convention", () => {
   });
 
   it("nav is filtered by permission", () => {
-    expect(visibleApps(permissionsForRoles(["kyc_analyst"])).map((a) => a.id)).toEqual(["kyc"]);
+    expect(visibleApps(permissionsForRoles(["kyc_analyst"])).map((a) => a.id)).toEqual(["kyc", "kyc-review"]);
+    expect(visibleApps(permissionsForRoles(["kyc_approver"])).find((a) => a.id === "kyc-review")!.nav.map((n) => n.label)).toEqual(["Awaiting approval"]);
     expect(visibleApps(permissionsForRoles(["admin"]))).toEqual([]);
     const support = visibleApps(permissionsForRoles(["support"]));
     expect(support.map((a) => a.id)).toEqual(["kyc", "refunds"]);

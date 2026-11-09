@@ -6,24 +6,28 @@
  * The approval gate reuses the platform maker-checker helper (four-eyes).
  */
 import { z } from "zod";
+import { APPS } from "@/apps/registry";
 import { defineAction } from "../action";
 import { decideApproval, submitForApproval } from "../approval";
 import { writeAuditEvent } from "../audit";
 import type { FullTx } from "../db";
 import { ConflictError, ForbiddenError, NotFoundError, ActionError } from "../errors";
 import { hasPermission } from "../guard";
+import { PERMISSIONS } from "../rbac";
 import type { AppSession } from "../session";
 import { teamBudgets, teamFor } from "./config";
 import { startBuild } from "./build";
 import { buildPrompt, devinMode, getDevinSession } from "./devin";
 import { asApprovable, auditSnapshot, canSee, nextBuildState, teamAcusThisMonth, type ToolRequestRow } from "./lifecycle";
-import { estimateAcus, parseManifestYaml, toolRequestFormSchema } from "./manifest";
+import { estimateAcus, newAppConflict, parseManifestYaml, toolRequestFormSchema } from "./manifest";
 
 const ENTITY = "ToolRequest";
 const TEAM_BUDGET_LOCK = 746_174_002;
 const idInput = z.object({ id: z.string().min(1).max(64) });
 const snap = auditSnapshot;
 type Row = ToolRequestRow;
+
+const conflictWithExistingApps = (id: string) => newAppConflict(id, { appIds: APPS.map((a) => a.id), permissions: PERMISSIONS });
 
 async function load(tx: FullTx, id: string, session: AppSession) {
   const r = await tx.toolRequest.findUnique({ where: { id } });
@@ -48,6 +52,8 @@ export const createToolRequest = defineAction({
     const parsed = parseManifestYaml(input.manifestYaml);
     if (!parsed.ok) throw new ActionError("INVALID_INPUT", "The manifest is invalid.", { manifestYaml: parsed.errors });
     const m = parsed.manifest;
+    const conflict = conflictWithExistingApps(m.id);
+    if (conflict) throw new ActionError("INVALID_INPUT", conflict, { manifestYaml: [conflict] });
     const r = await tx.toolRequest.create({
       data: {
         toolName: m.name,
@@ -89,6 +95,9 @@ export const approveToolRequest = defineAction({
     const r = await load(tx, input.id, session);
     if (r.status !== "SUBMITTED") throw new ConflictError(`Only SUBMITTED requests can be approved (this one is ${r.status}).`);
     const { decidedById } = decideApproval(asApprovable(r), "APPROVE", session.userId); // four-eyes
+    const parsed = parseManifestYaml(r.manifestYaml);
+    const conflict = parsed.ok ? conflictWithExistingApps(parsed.manifest.id) : "The stored manifest is invalid.";
+    if (conflict) throw new ConflictError(conflict);
 
     // Serialize approvals per team so two concurrent approvals cannot both pass the budget check.
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(${TEAM_BUDGET_LOCK}::int, hashtext(${r.team}::text))::text AS locked`;

@@ -4,11 +4,10 @@
  */
 import yaml from "js-yaml";
 import { z } from "zod";
-import { PERMISSIONS, ROLES, type Role } from "../rbac";
+import { ROLES, type Role } from "../rbac";
 
 export const ROLE_NAMES = Object.keys(ROLES) as [Role, ...Role[]];
 export const FIELD_TYPES = ["string", "text", "int", "decimal", "boolean", "date", "datetime"] as const;
-const TAKEN_NAMESPACES = new Set(PERMISSIONS.map((p) => p.split(":")[0]));
 const NUMERIC_TYPES = new Set<string>(["int", "decimal"]);
 
 const role = z.enum(ROLE_NAMES);
@@ -104,8 +103,6 @@ export const toolManifestSchema = z
   .superRefine((m, ctx) => {
     checkConsistency(m, ctx);
     const want = permissionsFor(m.id, !!m.approvalRule);
-    const ns = want.read.split(":")[0]!;
-    if (TAKEN_NAMESPACES.has(ns)) ctx.addIssue({ code: "custom", path: ["id"], message: `permission namespace "${ns}" is already used in rbac.ts; pick another tool name` });
     for (const k of ["read", "write", "approve"] as const) {
       if (m.permissions[k] !== want[k]) ctx.addIssue({ code: "custom", path: ["permissions", k], message: `must be ${JSON.stringify(want[k])}` });
     }
@@ -118,6 +115,17 @@ export type ToolManifest = z.output<typeof toolManifestSchema>;
 export function computeRiskTier(m: { entities: { fields: { pii?: boolean; money?: boolean }[] }[]; approvalRule?: unknown }): RiskTier {
   const sensitive = m.entities.some((e) => e.fields.some((f) => f.pii || f.money));
   return sensitive || m.approvalRule ? "HIGH" : "LOW";
+}
+
+/**
+ * Why this manifest can't be built as a new app (its id or permission namespace is taken), or null.
+ * Checked when a request is created and approved, not in the schema, so stored manifests stay valid after their app merges.
+ */
+export function newAppConflict(id: string, existing: { appIds: readonly string[]; permissions: readonly string[] }): string | null {
+  if (existing.appIds.includes(id)) return `An app with id "${id}" already exists; pick another tool name.`;
+  const ns = permissionsFor(id, false).read.split(":")[0]!;
+  if (existing.permissions.some((p) => p.startsWith(`${ns}:`))) return `Permission namespace "${ns}" is already used in rbac.ts; pick another tool name.`;
+  return null;
 }
 
 /** rbac.ts only accepts `[a-z_]+:[a-z_]+`, so the namespace is the app id with `-` replaced by `_`. */

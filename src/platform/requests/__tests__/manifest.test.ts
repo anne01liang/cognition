@@ -4,6 +4,7 @@ import {
   estimateAcus,
   formToManifest,
   manifestToYaml,
+  newAppConflict,
   parseManifestYaml,
   summarizeManifest,
   toolManifestSchema,
@@ -66,7 +67,7 @@ describe("manifest: deterministic conversion", () => {
     expect(formToManifest({ ...refundsForm(), name: "Refunds 2" }).id).toBe("refunds-two");
     expect(formToManifest({ ...refundsForm(), name: "Refunds 3" }).id).toBe("refunds-three");
     expect(formToManifest({ ...refundsForm(), name: "X 12" }).id).toBe("x-one-two");
-    expect(toolManifestSchema.safeParse(formToManifest({ ...refundsForm(), name: "Tools" })).success).toBe(false);
+    expect(toolManifestSchema.safeParse(formToManifest({ ...refundsForm(), name: "Tools" })).success).toBe(true);
     const east = formToManifest({ ...refundsForm(), name: "Payment Reconciliation 12345 East" }).id;
     expect(east).not.toBe(formToManifest({ ...refundsForm(), name: "Payment Reconciliation 12345 West" }).id);
     expect(toolRequestFormSchema.safeParse({ ...refundsForm(), name: "Reconciliation 1234567890123" }).success).toBe(false);
@@ -129,4 +130,14 @@ describe("risk tier", () => {
   it("is HIGH with any @pii field", () => expect(computeRiskTier({ entities: [{ fields: [{}, { pii: true }] }] })).toBe("HIGH"));
   it("is HIGH with any @money field", () => expect(computeRiskTier({ entities: [{ fields: [{}] }, { fields: [{ money: true }] }] })).toBe("HIGH"));
   it("is HIGH with an approval rule", () => expect(computeRiskTier({ ...base, approvalRule: { field: "x" } })).toBe("HIGH"));
+});
+
+describe("newAppConflict", () => {
+  const existing = { appIds: ["kyc", "refunds"], permissions: ["tools:approve", "refund:read", "kyc:read"] };
+  it("rejects ids of existing apps and taken permission namespaces", () => {
+    expect(newAppConflict("refunds", existing)).toMatch(/already exists/);
+    expect(newAppConflict("tools", existing)).toMatch(/namespace "tools"/);
+    expect(newAppConflict("refund", existing)).toMatch(/namespace "refund"/);
+    expect(newAppConflict("visitor-log", existing)).toBeNull();
+  });
 });

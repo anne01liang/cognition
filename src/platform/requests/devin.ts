@@ -61,7 +61,7 @@ export function buildPrompt({ id, name, manifestYaml }: PromptInput): string {
     "Rules:",
     "- Follow ADDING_AN_APP.md exactly.",
     `- Open a PR titled 'tool-request/${id}: ${name}'.`,
-    "- Do not modify src/platform/**.",
+    "- Do not modify src/platform/** except adding this app's permissions (the manifest's permissions block) and their role grants to src/platform/rbac.ts. CI rejects tool-request PRs that change anything outside the new app's files.",
     "- Mark every manifest field with pii: true as `/// @pii` and every money: true field as `/// @money` in prisma/schema.prisma.",
     "- Run `npm run check` and make it pass before opening the PR.",
   ].join("\n");

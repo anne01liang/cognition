@@ -4,10 +4,11 @@
  */
 import yaml from "js-yaml";
 import { z } from "zod";
-import { ROLES, type Role } from "../rbac";
+import { PERMISSIONS, ROLES, type Role } from "../rbac";
 
 export const ROLE_NAMES = Object.keys(ROLES) as [Role, ...Role[]];
 export const FIELD_TYPES = ["string", "text", "int", "decimal", "boolean", "date", "datetime"] as const;
+const TAKEN_NAMESPACES = new Set(PERMISSIONS.map((p) => p.split(":")[0]));
 const NUMERIC_TYPES = new Set<string>(["int", "decimal"]);
 
 const role = z.enum(ROLE_NAMES);
@@ -103,6 +104,8 @@ export const toolManifestSchema = z
   .superRefine((m, ctx) => {
     checkConsistency(m, ctx);
     const want = permissionsFor(m.id, !!m.approvalRule);
+    const ns = want.read.split(":")[0]!;
+    if (TAKEN_NAMESPACES.has(ns)) ctx.addIssue({ code: "custom", path: ["id"], message: `permission namespace "${ns}" is already used in rbac.ts; pick another tool name` });
     for (const k of ["read", "write", "approve"] as const) {
       if (m.permissions[k] !== want[k]) ctx.addIssue({ code: "custom", path: ["permissions", k], message: `must be ${JSON.stringify(want[k])}` });
     }

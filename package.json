@@ -12,6 +12,7 @@
     "check:actions": "tsx scripts/check-actions.ts",
     "check:schema": "tsx scripts/check-schema.ts",
     "check:audit": "tsx scripts/check-npm-audit.ts",
+    "check:tool-request-scope": "tsx scripts/check-tool-request-scope.ts",
     "check": "npm run typecheck && npm run lint && npm run check:actions && npm run check:schema && npm run test",
     "db:migrate": "prisma migrate dev",
     "seed": "prisma migrate deploy && tsx prisma/seed.ts",

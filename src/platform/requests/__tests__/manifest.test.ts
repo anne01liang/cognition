@@ -6,6 +6,7 @@ import {
   manifestToYaml,
   parseManifestYaml,
   summarizeManifest,
+  toolManifestSchema,
   toolRequestFormSchema,
   type ToolRequestForm,
 } from "../manifest";
@@ -65,6 +66,7 @@ describe("manifest: deterministic conversion", () => {
     expect(formToManifest({ ...refundsForm(), name: "Refunds 2" }).id).toBe("refunds-two");
     expect(formToManifest({ ...refundsForm(), name: "Refunds 3" }).id).toBe("refunds-three");
     expect(formToManifest({ ...refundsForm(), name: "X 12" }).id).toBe("x-one-two");
+    expect(toolManifestSchema.safeParse(formToManifest({ ...refundsForm(), name: "Tools" })).success).toBe(false);
     const east = formToManifest({ ...refundsForm(), name: "Payment Reconciliation 12345 East" }).id;
     expect(east).not.toBe(formToManifest({ ...refundsForm(), name: "Payment Reconciliation 12345 West" }).id);
     expect(toolRequestFormSchema.safeParse({ ...refundsForm(), name: "Reconciliation 1234567890123" }).success).toBe(false);

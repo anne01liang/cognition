@@ -22,7 +22,7 @@ describe("prompt template", () => {
     expect(p).toContain("```yaml\nid: refund-requests\n```");
     expect(p).toContain("Follow ADDING_AN_APP.md exactly.");
     expect(p).toContain("Open a PR titled 'tool-request/abc123: Refund Requests'.");
-    expect(p).toContain("Do not modify src/platform/**.");
+    expect(p).toContain("Do not modify src/platform/** except adding this app's permissions");
   });
 
   it("cannot be broken out of with backticks in the manifest", () => {

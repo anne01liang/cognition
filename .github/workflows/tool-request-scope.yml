@@ -1,0 +1,28 @@
+name: tool-request-scope
+
+# Devin-built tool-request PRs may only add one new app (see scripts/check-tool-request-scope.ts).
+# Runs on every PR (and on title edits) so it can be a required check; non-tool-request PRs pass immediately.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  scope:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Tool-request PRs only add their own app
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          BASE_REF: origin/${{ github.base_ref }}
+        run: npm run check:tool-request-scope

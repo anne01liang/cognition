@@ -5,6 +5,7 @@
 *                                 @security-team
 
 # App code is owned by its team (no owners listed = no mandatory code-owner review) ...
+# HIGH-risk tool-request PRs still need a security reviewer: the `assess` check (risk-label.yml) enforces it.
 /src/apps/
 
 # ... except the files that define what an app may do.

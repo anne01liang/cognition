@@ -28,6 +28,9 @@ export const PERMISSIONS = [
   "refund:request",
   "refund:approve",
   "refund:escalation",
+  // ---- app: visitor-log ----
+  "visitor_log:read",
+  "visitor_log:write",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -35,7 +38,7 @@ export type Permission = (typeof PERMISSIONS)[number];
 export const ROLES = {
   kyc_analyst: ["kyc:read", "kyc:create", "kyc:review", "pii:reveal"],
   kyc_approver: ["kyc:read", "kyc:approve", "pii:reveal"],
-  support: ["kyc:read", "refund:read", "refund:request"],
+  support: ["kyc:read", "refund:read", "refund:request", "visitor_log:read", "visitor_log:write"],
   finance_approver: ["refund:read", "refund:approve", "pii:reveal"],
   ops_lead: ["kyc:read", "refund:read", "kyc:escalation", "refund:escalation", "tools:request"],
   admin: ["audit:read", "audit:verify", "tools:request", "tools:approve"],

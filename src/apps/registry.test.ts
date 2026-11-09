@@ -50,7 +50,7 @@ describe("app registry convention", () => {
     expect(visibleApps(permissionsForRoles(["kyc_analyst"])).map((a) => a.id)).toEqual(["kyc"]);
     expect(visibleApps(permissionsForRoles(["admin"]))).toEqual([]);
     const support = visibleApps(permissionsForRoles(["support"]));
-    expect(support.map((a) => a.id)).toEqual(["kyc", "refunds"]);
+    expect(support.map((a) => a.id)).toEqual(["kyc", "refunds", "visitor-log"]);
     expect(support.find((a) => a.id === "kyc")!.nav.map((n) => n.label)).toEqual(["Cases"]);
   });
 });

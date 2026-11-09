@@ -112,3 +112,47 @@ model Refund {
 
   @@index([status])
 }
+
+// ===== app: kyc-review =====
+
+enum KycReviewRecommendation {
+  APPROVE
+  REJECT
+  ESCALATE
+}
+
+/// Customer onboarding application awaiting compliance review.
+/// Maker = analyst who recommends (submittedById); checker = kyc:approve holder (decidedById).
+model KycReviewCase {
+  id                   String                   @id @default(cuid())
+  /// @pii
+  customerName         String
+  /// @pii
+  dateOfBirth          DateTime                 @db.Date
+  /// @pii US SSN. Seed data only uses never-issued 9xx area numbers.
+  ssn                  String
+  /// ISO 3166 alpha-2.
+  country              String
+  /// 0-100. >= 70 always needs a second person (src/apps/kyc-review/rules.ts).
+  riskScore            Int
+  /// [{ type, url, uploadedAt }], validated by documentsSchema in src/apps/kyc-review/schemas.ts.
+  documents            Json                     @default("[]")
+  status               ApprovalStatus           @default(DRAFT)
+  /// User id of the analyst who claimed the case. null = unassigned.
+  assignedTo           String?
+  /// When the customer submitted the application.
+  submittedAt          DateTime
+  /// submittedAt + 48h.
+  slaDueAt             DateTime
+  recommendation       KycReviewRecommendation?
+  recommendationReason String?
+  submittedById        String?
+  decidedById          String?
+  decisionReason       String?
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+
+  @@index([status])
+  @@index([assignedTo])
+  @@index([slaDueAt])
+}

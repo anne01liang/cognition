@@ -23,7 +23,7 @@ export const revealPii = defineAction({
     const resolver = findPiiResolver(input.entityType, input.field);
     if (!resolver) throw new NotFoundError("PII field");
     requirePermission(session, resolver.readPermission);
-    const value = await resolver.load(tx, input.entityId);
+    const value = await resolver.load(tx, input.entityId, session);
     if (value === null) throw new NotFoundError();
     await recordAudit({ entityType: input.entityType, entityId: input.entityId, after: { field: input.field } });
     return { value };

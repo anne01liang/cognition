@@ -1,5 +1,6 @@
 import type { AppTx } from "./types";
 import type { Permission } from "./rbac";
+import type { SessionLike } from "./guard";
 
 export interface NavItem {
   label: string;
@@ -11,7 +12,8 @@ export interface NavItem {
 export interface PiiFieldResolver {
   /** Extra permission needed besides pii:reveal (normally the app's read permission). */
   readPermission: Permission;
-  load: (tx: AppTx, entityId: string) => Promise<string | null>;
+  /** `viewer` lets apps with row-level scoping return null (404) for rows the user may not read. */
+  load: (tx: AppTx, entityId: string, viewer: SessionLike) => Promise<string | null>;
 }
 
 export interface AppManifest {

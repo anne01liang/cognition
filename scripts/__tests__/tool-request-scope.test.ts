@@ -1,5 +1,9 @@
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { checkToolRequestScope, type ChangedFile } from "../check-tool-request-scope";
+import { checkToolRequestScope, DEFAULT_BOT_LOGIN, isCheckedPr, type ChangedFile } from "../check-tool-request-scope";
 
 const baseRbac = `export const PERMISSIONS = [\n  "tools:request",\n  "tools:approve",\n  "kyc:read",\n];`;
 const appFiles: ChangedFile[] = [
@@ -98,4 +102,50 @@ describe("check-tool-request-scope", () => {
       expect(check({ migration: `${goodMigration}\n${bad}` })).toHaveLength(1);
     }
   });
+});
+
+describe("which PRs are checked", () => {
+  it("checks every PR by the Devin bot, whatever its title, and no others", () => {
+    expect(isCheckedPr({ author: DEFAULT_BOT_LOGIN, title: "tool-request/abc: Visitor log" })).toBe(true);
+    expect(isCheckedPr({ author: DEFAULT_BOT_LOGIN, title: "docs: tidy up" })).toBe(true);
+    expect(isCheckedPr({ author: "anne01liang", title: "tool-request/abc: Visitor log" })).toBe(false);
+    expect(isCheckedPr({ author: DEFAULT_BOT_LOGIN, title: "x" }, "other-bot[bot]")).toBe(false);
+  });
+
+  // Fixture: a throwaway git repo where a bot PR renamed away from "tool-request/" also edits a platform file.
+  it("CLI: a renamed bot PR is still checked and fails; a human PR is skipped", () => {
+    const repo = mkdtempSync(join(tmpdir(), "scope-fixture-"));
+    const git = (...args: string[]) => execFileSync("git", ["-c", "user.name=fixture", "-c", "user.email=fixture@example.com", ...args], { cwd: repo });
+    const write = (path: string, text: string) => {
+      mkdirSync(dirname(join(repo, path)), { recursive: true });
+      writeFileSync(join(repo, path), text);
+    };
+    try {
+      git("init", "-q", "-b", "main");
+      write("src/platform/rbac.ts", baseRbac);
+      write("src/platform/action.ts", "export const x = 1;\n");
+      git("add", ".");
+      git("commit", "-qm", "base");
+      git("checkout", "-qb", "devin/renamed");
+      write("src/apps/visitor-log/manifest.ts", "export {};\n");
+      write("src/platform/action.ts", "export const x = 2;\n");
+      git("add", ".");
+      git("commit", "-qm", "app + platform edit");
+
+      const run = (author: string) =>
+        spawnSync(resolve("node_modules/.bin/tsx"), [resolve("scripts/check-tool-request-scope.ts")], {
+          cwd: repo,
+          encoding: "utf8",
+          env: { ...process.env, PR_AUTHOR: author, PR_TITLE: "docs: tidy up", BASE_REF: "main", TOOL_REQUEST_BOT_LOGIN: "" },
+        });
+      const bot = run(DEFAULT_BOT_LOGIN);
+      expect(bot.status).toBe(1);
+      expect(bot.stderr).toContain("src/platform/action.ts: outside the files a tool-request app may change");
+      const human = run("anne01liang");
+      expect(human.status).toBe(0);
+      expect(human.stdout).toContain("skipped");
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  }, 30_000);
 });

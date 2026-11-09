@@ -1,10 +1,13 @@
 name: tool-request-scope
 
-# Devin-built tool-request PRs may only add one new app (see scripts/check-tool-request-scope.ts).
-# Runs on every PR (and on title edits) so it can be a required check; non-tool-request PRs pass immediately.
+# Every PR opened by the Devin bot may only add one new app (see scripts/check-tool-request-scope.ts).
+# Keyed on the PR author, not the title or labels, which the PR itself can change.
+# REQUIRED: make the `scope` job a required status check on main (README "Branch protection"); a failing
+# check that isn't required does not block merging. Non-bot PRs pass immediately so the check can be required.
+# Set the repo variable TOOL_REQUEST_BOT_LOGIN if Devin opens PRs under another account.
 on:
   pull_request:
-    types: [opened, synchronize, reopened, edited]
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
@@ -21,8 +24,10 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Tool-request PRs only add their own app
+      - name: Devin bot PRs only add their own app
         env:
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           PR_TITLE: ${{ github.event.pull_request.title }}
+          TOOL_REQUEST_BOT_LOGIN: ${{ vars.TOOL_REQUEST_BOT_LOGIN }}
           BASE_REF: origin/${{ github.base_ref }}
         run: npm run check:tool-request-scope

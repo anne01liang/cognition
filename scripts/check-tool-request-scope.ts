@@ -1,7 +1,9 @@
 /**
- * Tool-request PRs (title "tool-request/...") are built by Devin from a requester's manifest. They may only add
- * one new app: its folder, route shims, registry entry, schema/migration/seed additions, and in
- * src/platform/rbac.ts only that app's own permission strings and role grants. Anything else needs a normal PR.
+ * Every PR opened by the Devin bot account (TOOL_REQUEST_BOT_LOGIN, default devin-ai-integration[bot]) is checked,
+ * whatever its title or labels say, since both are editable. Such a PR may only add one new app: its folder, route
+ * shims, registry entry, schema/migration/seed additions, and in src/platform/rbac.ts only that app's own permission
+ * strings and role grants. Anything else needs a PR from a human account.
+ * This only protects main if the `scope` job is a required status check (see README "Branch protection").
  */
 import { execFileSync } from "node:child_process";
 
@@ -17,6 +19,13 @@ export interface ScopeInput {
   /** Contents of added migration.sql files. */
   migrations: Record<string, string>;
   baseRbac: string;
+}
+
+export const DEFAULT_BOT_LOGIN = "devin-ai-integration[bot]";
+
+/** The title is deliberately ignored: renaming a bot PR must not skip the check. */
+export function isCheckedPr(pr: { author: string; title: string }, botLogin = DEFAULT_BOT_LOGIN): boolean {
+  return pr.author === botLogin;
 }
 
 const APP_FILE = /^src\/apps\/([a-z][a-z-]*)\//;
@@ -128,9 +137,14 @@ export function checkMigration(file: string, sql: string): string[] {
 const git = (...args: string[]) => execFileSync("git", args, { encoding: "utf8" });
 
 function main() {
-  const title = process.env.PR_TITLE ?? "";
-  if (!title.startsWith("tool-request/")) {
-    console.log("check-tool-request-scope: not a tool-request PR, skipped");
+  const author = process.env.PR_AUTHOR;
+  if (!author) {
+    console.error("check-tool-request-scope: PR_AUTHOR is not set; refusing to skip the check");
+    process.exit(1);
+  }
+  const botLogin = process.env.TOOL_REQUEST_BOT_LOGIN || DEFAULT_BOT_LOGIN;
+  if (!isCheckedPr({ author, title: process.env.PR_TITLE ?? "" }, botLogin)) {
+    console.log(`check-tool-request-scope: PR by ${author}, not ${botLogin}; skipped`);
     return;
   }
   const base = git("merge-base", process.env.BASE_REF ?? "origin/main", "HEAD").trim();

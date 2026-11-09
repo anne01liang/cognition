@@ -22,8 +22,27 @@ const goodRbacDiff = [
   '-  ops_lead: ["kyc:read", "tools:request"],',
   '+  ops_lead: ["kyc:read", "tools:request", "desk_booking_notes:read", "desk_booking_notes:write"],',
 ].join("\n");
-const check = (over: { files?: ChangedFile[]; rbacDiff?: string }) =>
-  checkToolRequestScope({ files: over.files ?? appFiles, rbacDiff: over.rbacDiff ?? goodRbacDiff, baseRbac });
+const goodRegistryDiff = [
+  "@@ -4,0 +5 @@",
+  '+import { deskBookingNotesApp } from "./desk-booking-notes/manifest";',
+  "@@ -10 +11 @@",
+  "-export const APPS: readonly AppManifest[] = [kycApp, refundsApp];",
+  "+export const APPS: readonly AppManifest[] = [kycApp, refundsApp, deskBookingNotesApp];",
+].join("\n");
+const goodMigration = [
+  "-- CreateTable",
+  'CREATE TABLE "DeskBookingNote" ("id" TEXT NOT NULL, "createdById" TEXT NOT NULL, CONSTRAINT "DeskBookingNote_pkey" PRIMARY KEY ("id"));',
+  'CREATE INDEX "DeskBookingNote_createdById_idx" ON "DeskBookingNote"("createdById");',
+  'ALTER TABLE "DeskBookingNote" ADD CONSTRAINT "DeskBookingNote_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id");',
+].join("\n");
+const MIG = "prisma/migrations/20261109000000_desk_booking_notes_init/migration.sql";
+const check = (over: { files?: ChangedFile[]; rbacDiff?: string; diffs?: Record<string, string>; migration?: string }) =>
+  checkToolRequestScope({
+    files: over.files ?? appFiles,
+    diffs: { "src/platform/rbac.ts": over.rbacDiff ?? goodRbacDiff, "src/apps/registry.ts": goodRegistryDiff, ...over.diffs },
+    migrations: { [MIG]: over.migration ?? goodMigration },
+    baseRbac,
+  });
 
 describe("check-tool-request-scope", () => {
   it("accepts a new app with its own permissions and role grants", () => {
@@ -63,6 +82,20 @@ describe("check-tool-request-scope", () => {
   it("rejects an app whose namespace already exists (e.g. an app called 'tools')", () => {
     const files: ChangedFile[] = [{ status: "A", path: "src/apps/tools/actions.ts" }, { status: "M", path: "src/platform/rbac.ts" }];
     const rbacDiff = '@@ -40 +40 @@\n-  ops_lead: ["kyc:read"],\n+  ops_lead: ["kyc:read", "tools:approve"],';
-    expect(checkToolRequestScope({ files, rbacDiff, baseRbac })[0]).toMatch(/namespace "tools" already exists/);
+    expect(checkToolRequestScope({ files, diffs: { "src/platform/rbac.ts": rbacDiff }, migrations: {}, baseRbac })[0]).toMatch(/namespace "tools" already exists/);
+  });
+
+  it("rejects registry, schema and seed edits that change other apps", () => {
+    const dropsRefunds = goodRegistryDiff.replace("[kycApp, refundsApp, deskBookingNotesApp]", "[kycApp, deskBookingNotesApp]");
+    expect(check({ diffs: { "src/apps/registry.ts": dropsRefunds } })).toHaveLength(2);
+    const schema = '@@ -20 +20 @@\n-  amountCents Int /// @money\n+  amountCents Int';
+    expect(check({ diffs: { "prisma/schema.prisma": schema } })[0]).toMatch(/schema\.prisma: may only add lines/);
+    expect(check({ diffs: { "prisma/schema.prisma": "@@ -30,0 +31 @@\n+  deskBookingNotes DeskBookingNote[]" } })).toEqual([]);
+  });
+
+  it("rejects migrations that touch existing tables or data", () => {
+    for (const bad of ['ALTER TABLE "User" ADD COLUMN "x" TEXT;', 'DROP TRIGGER "audit_append_only" ON "AuditEvent";', 'UPDATE "Refund" SET "status" = \'APPROVED\';', 'CREATE INDEX "i" ON "User"("email");']) {
+      expect(check({ migration: `${goodMigration}\n${bad}` })).toHaveLength(1);
+    }
   });
 });

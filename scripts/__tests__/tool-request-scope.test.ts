@@ -110,6 +110,7 @@ describe("which PRs are checked", () => {
     expect(isCheckedPr({ author: DEFAULT_BOT_LOGIN, title: "docs: tidy up" })).toBe(true);
     expect(isCheckedPr({ author: "anne01liang", title: "tool-request/abc: Visitor log" })).toBe(false);
     expect(isCheckedPr({ author: DEFAULT_BOT_LOGIN, title: "x" }, "other-bot[bot]")).toBe(false);
+    expect(isCheckedPr({ author: "acme-tool-builder", title: "x" }, "Acme-Tool-Builder")).toBe(true);
   });
 
   // Fixture: a throwaway git repo where a bot PR renamed away from "tool-request/" also edits a platform file.

@@ -11,6 +11,14 @@ import { fileURLToPath } from "node:url";
 
 export const DEFAULT_BOT_LOGIN = "devin-ai-integration[bot]";
 
+/**
+ * GitHub logins are case-insensitive, so a differently cased TOOL_REQUEST_BOT_LOGIN still matches.
+ * @param {{ author: string; risky: string | undefined; botLogin?: string }} pr
+ */
+export function needsSecurityReview({ author, risky, botLogin = DEFAULT_BOT_LOGIN }) {
+  return author.toLowerCase() === botLogin.toLowerCase() && risky === "true";
+}
+
 /** @param {string | undefined} v */
 export function parseReviewers(v) {
   return (v ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
@@ -67,7 +75,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.error("check-security-review: PR_AUTHOR is not set; refusing to skip the check");
     process.exit(1);
   }
-  if (env.PR_AUTHOR !== botLogin || env.RISKY !== "true") {
+  if (!needsSecurityReview({ author: env.PR_AUTHOR, risky: env.RISKY, botLogin })) {
     console.log(`check-security-review: not a HIGH-risk tool-request PR (author ${env.PR_AUTHOR}, risky=${env.RISKY}); skipped`);
     process.exit(0);
   }

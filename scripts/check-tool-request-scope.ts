@@ -25,7 +25,8 @@ export const DEFAULT_BOT_LOGIN = "devin-ai-integration[bot]";
 
 /** The title is deliberately ignored: renaming a bot PR must not skip the check. */
 export function isCheckedPr(pr: { author: string; title: string }, botLogin = DEFAULT_BOT_LOGIN): boolean {
-  return pr.author === botLogin;
+  // GitHub logins are case-insensitive.
+  return pr.author.toLowerCase() === botLogin.toLowerCase();
 }
 
 const APP_FILE = /^src\/apps\/([a-z][a-z-]*)\//;

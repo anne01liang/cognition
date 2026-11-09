@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 // @ts-expect-error - plain .mjs script without types
-import { parseReviewers, securityReviewStatus } from "../check-security-review.mjs";
+import { needsSecurityReview, parseReviewers, securityReviewStatus } from "../check-security-review.mjs";
 
 const HEAD = "bbb";
 const review = (login: string, state: string, commit_id = HEAD) => ({ user: { login }, state, commit_id });
@@ -35,6 +35,13 @@ describe("security review gate for HIGH-risk tool-request PRs", () => {
       securityReviewStatus({ reviews: [review("tara", "APPROVED"), review("sam-sec", "CHANGES_REQUESTED")], headSha: HEAD, reviewers }).ok,
     ).toBe(false);
     expect(securityReviewStatus({ reviews: [review("tara", "APPROVED"), review("tara", "COMMENTED")], headSha: HEAD, reviewers }).ok).toBe(true);
+  });
+
+  it("applies to risky PRs by the Tool Request bot, whatever the case of the configured login", () => {
+    expect(needsSecurityReview({ author: "devin-ai-integration[bot]", risky: "true" })).toBe(true);
+    expect(needsSecurityReview({ author: "acme-tool-builder", risky: "true", botLogin: "Acme-Tool-Builder" })).toBe(true);
+    expect(needsSecurityReview({ author: "devin-ai-integration[bot]", risky: "false" })).toBe(false);
+    expect(needsSecurityReview({ author: "anne01liang", risky: "true" })).toBe(false);
   });
 
   it("CLI: skips human PRs and LOW-risk bot PRs without calling GitHub", () => {

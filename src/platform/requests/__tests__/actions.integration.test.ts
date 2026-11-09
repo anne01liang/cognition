@@ -139,12 +139,15 @@ describe.skipIf(!hasTestDb)("tool requests (integration)", async () => {
     ]);
   });
 
-  it("budget: FAILED requests count only if a Devin session was started", async () => {
+  it("budget: FAILED requests are free only if the session definitely never started", async () => {
     const { teamAcusThisMonth } = await import("../lifecycle");
     const base = { toolName: "Budget probe", riskTier: "LOW" as const, form: {}, manifestYaml: "x", requestedById: "probe", approvedAt: new Date(), status: "FAILED" as const };
-    const usedBefore = await db.$transaction((tx) => teamAcusThisMonth(tx, "probe-team"));
-    await db.toolRequest.create({ data: { ...base, team: "probe-team", estimatedAcus: 7 } });
+    let usedBefore = await db.$transaction((tx) => teamAcusThisMonth(tx, "probe-team"));
+    await db.toolRequest.create({ data: { ...base, team: "probe-team", estimatedAcus: 7, acusUsed: 0 } });
     expect(await db.$transaction((tx) => teamAcusThisMonth(tx, "probe-team"))).toBe(usedBefore);
+    await db.toolRequest.create({ data: { ...base, team: "probe-team", estimatedAcus: 5 } });
+    expect(await db.$transaction((tx) => teamAcusThisMonth(tx, "probe-team"))).toBe(usedBefore + 5);
+    usedBefore += 5;
     await db.toolRequest.create({ data: { ...base, team: "probe-team", estimatedAcus: 9, devinSessionId: "mock-x", acusUsed: 12 } });
     expect(await db.$transaction((tx) => teamAcusThisMonth(tx, "probe-team"))).toBe(usedBefore + 12);
   });

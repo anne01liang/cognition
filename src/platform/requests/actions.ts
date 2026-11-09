@@ -14,7 +14,7 @@ import { ConflictError, ForbiddenError, NotFoundError, ActionError } from "../er
 import { hasPermission } from "../guard";
 import type { AppSession } from "../session";
 import { teamBudgets, teamFor } from "./config";
-import { buildPrompt, createDevinSession, devinMode, getDevinSession } from "./devin";
+import { DevinApiError, buildPrompt, createDevinSession, devinMode, getDevinSession } from "./devin";
 import { asApprovable, auditSnapshot, canSee, nextBuildState, teamAcusThisMonth, type ToolRequestRow } from "./lifecycle";
 import { estimateAcus, parseManifestYaml, toolRequestFormSchema } from "./manifest";
 
@@ -113,7 +113,9 @@ export const approveToolRequest = defineAction({
       next = await transition(tx, approved, { status: "BUILDING", devinSessionId: s.sessionId, devinSessionUrl: s.url, buildStartedAt: new Date() });
     } catch (err) {
       const message = err instanceof Error ? err.message.slice(0, 300) : "Unknown error";
-      next = await transition(tx, approved, { status: "FAILED", lastError: `Could not start Devin session: ${message}` });
+      // acusUsed = 0 only when no session can exist; timeouts and 5xx keep the estimate charged to the budget.
+      const notStarted = err instanceof DevinApiError && err.definitive;
+      next = await transition(tx, approved, { status: "FAILED", lastError: `Could not start Devin session: ${message}`, acusUsed: notStarted ? 0 : null });
     }
     await recordAudit({ entityId: r.id, before: snap(approved), after: { ...snap(next), devinSessionUrl: next.devinSessionUrl, lastError: next.lastError } });
     return { status: next.status };

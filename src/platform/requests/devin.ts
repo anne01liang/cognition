@@ -23,7 +23,12 @@ export interface SessionSnapshot {
   error: string | null;
 }
 
-export class DevinApiError extends Error {}
+export class DevinApiError extends Error {
+  /** True when Devin definitely did not start a session (config error or 4xx); false when a session may exist. */
+  constructor(message: string, readonly definitive = true) {
+    super(message);
+  }
+}
 
 export type DevinMode = "mock" | "live";
 
@@ -92,7 +97,7 @@ async function call<T>(method: "GET" | "POST", path: string, body?: unknown): Pr
   if (!res.ok) {
     // Do not echo request headers; include only status and a short body excerpt.
     const text = (await res.text().catch(() => "")).slice(0, 200);
-    throw new DevinApiError(`Devin API ${method} ${path} failed: HTTP ${res.status} ${text}`);
+    throw new DevinApiError(`Devin API ${method} ${path} failed: HTTP ${res.status} ${text}`, res.status < 500);
   }
   return (await res.json()) as T;
 }

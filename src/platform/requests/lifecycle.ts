@@ -11,9 +11,9 @@ type BuildFields = Pick<ToolRequestRow, "status" | "prUrl" | "acusUsed" | "lastE
 
 /**
  * Statuses whose estimate (or actual usage, if higher) counts against the team's monthly budget.
- * FAILED counts only if a Devin session was actually started.
+ * A FAILED request is free only if its session definitely never started (no session id and acusUsed = 0).
  */
-export const BUDGETED_STATUSES = ["APPROVED", "BUILDING", "PR_OPEN", "MERGED"] as const;
+export const BUDGETED_STATUSES = ["APPROVED", "BUILDING", "PR_OPEN", "MERGED", "FAILED"] as const;
 
 /** Fields safe for audit before/after. */
 export const auditSnapshot = (r: ToolRequestRow) => ({
@@ -41,11 +41,12 @@ export async function teamAcusThisMonth(tx: FullTx, team: string, now = new Date
     where: {
       team,
       approvedAt: { gte: monthStart(now) },
-      OR: [{ status: { in: [...BUDGETED_STATUSES] } }, { status: "FAILED", devinSessionId: { not: null } }],
+      status: { in: [...BUDGETED_STATUSES] },
     },
-    select: { estimatedAcus: true, acusUsed: true },
+    select: { status: true, devinSessionId: true, estimatedAcus: true, acusUsed: true },
   });
-  return rows.reduce((n, r) => n + Math.max(r.estimatedAcus, r.acusUsed ?? 0), 0);
+  const neverStarted = (r: (typeof rows)[number]) => r.status === "FAILED" && r.devinSessionId === null && r.acusUsed === 0;
+  return rows.filter((r) => !neverStarted(r)).reduce((n, r) => n + Math.max(r.estimatedAcus, r.acusUsed ?? 0), 0);
 }
 
 /**

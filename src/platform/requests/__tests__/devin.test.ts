@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildPrompt, createDevinSession, devinMode, getDevinSession, mapLiveSession, mockSnapshot, MOCK_TIMELINE } from "../devin";
+import { DevinApiError, buildPrompt, createDevinSession, devinMode, getDevinSession, mapLiveSession, mockSnapshot, MOCK_TIMELINE } from "../devin";
 import { nextBuildState } from "../lifecycle";
 
 afterEach(() => {
@@ -98,6 +98,11 @@ describe("live mode", () => {
     const err = await createDevinSession({ requestId: "r1", title: "t", prompt: "p", maxAcuLimit: 1 }).catch((e: Error) => e);
     expect(String(err)).toMatch(/HTTP 401/);
     expect(String(err)).not.toContain("apk_secret_123");
+    expect((err as DevinApiError).definitive).toBe(true);
+
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("bad gateway", { status: 502 })));
+    const err5xx = await createDevinSession({ requestId: "r1", title: "t", prompt: "p", maxAcuLimit: 1 }).catch((e: Error) => e);
+    expect((err5xx as DevinApiError).definitive).toBe(false);
   });
 
   it("polls GET /v1/sessions/{id}", async () => {

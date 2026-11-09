@@ -82,7 +82,7 @@ export type RiskTier = (typeof RISK_TIERS)[number];
 /** The generated app manifest. This is what the Devin session is asked to build. */
 export const toolManifestSchema = z
   .object({
-    id: z.string().regex(/^[a-z][a-z0-9-]{2,39}$/, "id is kebab-case (it becomes src/apps/<id>)"),
+    id: z.string().regex(/^[a-z][a-z-]{2,39}$/, "id is lowercase a-z and - only (it becomes src/apps/<id>)"),
     name: z.string().min(3).max(60),
     purpose: z.string().min(10).max(2000),
     riskTier: z.enum(RISK_TIERS),
@@ -96,7 +96,7 @@ export const toolManifestSchema = z
   .strict()
   .superRefine((m, ctx) => {
     checkConsistency(m, ctx);
-    const want = { read: `${m.id}:read`, write: `${m.id}:write`, approve: m.approvalRule ? `${m.id}:approve` : null };
+    const want = permissionsFor(m.id, !!m.approvalRule);
     for (const k of ["read", "write", "approve"] as const) {
       if (m.permissions[k] !== want[k]) ctx.addIssue({ code: "custom", path: ["permissions", k], message: `must be ${JSON.stringify(want[k])}` });
     }
@@ -111,8 +111,14 @@ export function computeRiskTier(m: { entities: { fields: { pii?: boolean; money?
   return sensitive || m.approvalRule ? "HIGH" : "LOW";
 }
 
+/** rbac.ts only accepts `[a-z_]+:[a-z_]+`, so the namespace is the app id with `-` replaced by `_`. */
+export function permissionsFor(id: string, hasApproval: boolean) {
+  const ns = id.replace(/-/g, "_");
+  return { read: `${ns}:read`, write: `${ns}:write`, approve: hasApproval ? `${ns}:approve` : null };
+}
+
 export function slugify(name: string): string {
-  return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+  return name.trim().toLowerCase().replace(/[^a-z]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
 }
 
 export function formToManifest(form: ToolRequestForm): ToolManifest {
@@ -123,7 +129,7 @@ export function formToManifest(form: ToolRequestForm): ToolManifest {
     name: form.name.trim(),
     purpose: form.purpose.trim(),
     riskTier: computeRiskTier({ entities: form.entities, approvalRule }),
-    permissions: { read: `${id}:read`, write: `${id}:write`, approve: approvalRule ? `${id}:approve` : null },
+    permissions: permissionsFor(id, !!approvalRule),
     primaryUsers: [...form.primaryUsers],
     readOnlyRoles: form.readOnlyRoles.filter((r) => !form.primaryUsers.includes(r)),
     entities: form.entities.map((e) => ({ name: e.name, fields: e.fields.map((f) => ({ name: f.name, type: f.type, pii: f.pii, money: f.money })) })),

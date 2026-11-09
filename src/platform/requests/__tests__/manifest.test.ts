@@ -49,10 +49,19 @@ describe("manifest: deterministic conversion", () => {
     if (!parsed.ok) return;
     expect(parsed.manifest).toMatchObject({
       id: "refund-requests",
-      permissions: { read: "refund-requests:read", write: "refund-requests:write", approve: "refund-requests:approve" },
+      permissions: { read: "refund_requests:read", write: "refund_requests:write", approve: "refund_requests:approve" },
       workflow: { initial: "DRAFT" },
       riskTier: "HIGH",
     });
+  });
+
+  it("generates permissions in the rbac.ts format, whatever the tool name", () => {
+    for (const name of ["Desk booking notes", "Refunds 2.0 (EU)", "chargeback-disputes"]) {
+      const m = formToManifest({ ...refundsForm(), name });
+      expect(m.id).toMatch(/^[a-z][a-z-]+$/);
+      for (const p of [m.permissions.read, m.permissions.write, m.permissions.approve]) expect(p).toMatch(/^[a-z_]+:[a-z_]+$/);
+    }
+    expect(formToManifest({ ...refundsForm(), name: "Desk booking notes" }).permissions.read).toBe("desk_booking_notes:read");
   });
 
   it("summarizes in plain English", () => {
@@ -78,7 +87,7 @@ describe("manifest: validation rejects bad input", () => {
     ["unknown top-level key", good() + "extraKey: 1\n", /Unrecognized key/i],
     ["bad id", good().replace("id: refund-requests", "id: Refund_Requests"), /^id:/m],
     ["downgraded risk tier", good().replace("riskTier: HIGH", "riskTier: LOW"), /riskTier is computed and must be HIGH/],
-    ["permission outside namespace", good().replace("approve: refund-requests:approve", "approve: refund:approve"), /permissions\.approve/],
+    ["permission outside namespace", good().replace("approve: refund_requests:approve", "approve: refund:approve"), /permissions\.approve/],
     ["approval rule on missing field", good().replace("field: amount", "field: total"), /approvalRule\.field.*does not exist/],
     ["money on a string field", good().replace("type: decimal", "type: string"), /must be int \(minor units\) or decimal/],
     ["unknown role", good().replace("- ops_lead", "- superuser"), /readOnlyRoles/],

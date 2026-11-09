@@ -45,12 +45,14 @@ npm run check:audit     # npm audit --audit-level=high with expiring allowlist
 
 Tool Requests run in mock mode by default (`DEVIN_MODE=mock`, no key needed): an approved request simulates a ~30s Devin build with a fake PR URL. Tool names containing "fail" end FAILED; names containing "question" pause in NEEDS_INPUT (shown on My Requests with a link to the session) from 5s to 20s, then finish. Set `DEVIN_API_KEY` (and `DEVIN_MODE=live`) to start real sessions via the v1 API.
 
+> **Production requirement:** Tool Request builds must open PRs under a dedicated GitHub identity, set as `TOOL_REQUEST_BOT_LOGIN`. The `scope` and `assess` gates recognize generated PRs by that author. See [the setup below](#production-requirement-a-dedicated-github-identity-for-tool-request-builds).
+
 ## Branch protection (a human must enable)
 
 The CI guardrails only block merges if GitHub enforces them. On `main` (Settings → Branches, or a ruleset):
 
 1. **Require a pull request before merging**, with at least 1 approval.
-2. **Require review from Code Owners** (makes `.github/CODEOWNERS` bite: @security-team on everything outside `src/apps/**`). Teams only exist in GitHub organizations: move the repo into an org and create `@security-team` with write access, or replace it in CODEOWNERS with named users.
+2. **Require review from Code Owners** (makes `.github/CODEOWNERS` bite: @anne01liang on everything outside `src/apps/**`). CODEOWNERS names users, not a team, because this repo belongs to a personal account and teams only exist in GitHub organizations. In an org, replace them with a security team that has write access.
 3. **Dismiss stale approvals when new commits are pushed** and **require approval of the most recent push**, so a reviewed PR can't change afterwards unreviewed.
 4. **Require status checks to pass**, with these required: `checks` (CI), `scope` (tool-request-scope: Tool Request bot PRs may only add one new app), `assess` (risk label + security approval for HIGH-risk tool-request PRs). Also **require branches to be up to date**.
 5. **Do not allow bypassing the above settings** (applies to admins too).
@@ -58,7 +60,7 @@ The CI guardrails only block merges if GitHub enforces them. On `main` (Settings
 
 Repo variables (Settings → Secrets and variables → Actions → Variables):
 
-- `SECURITY_REVIEWERS`: comma-separated GitHub logins of @security-team. App code under `src/apps/**` has no code owner, so for a HIGH-risk tool-request PR (it touches `@pii`/`@money` fields or sensitive permissions) `assess` fails until one of them approves the PR's latest commit; it re-runs on every review. A list, because `GITHUB_TOKEN` can't read org team membership; a GitHub App or token with org *Members: read* could replace it with a team lookup. Unset = no one can approve (fails closed).
+- `SECURITY_REVIEWERS`: comma-separated GitHub logins of the security reviewers (today `anne01liang`, matching CODEOWNERS). App code under `src/apps/**` has no code owner, so for a HIGH-risk tool-request PR (it touches `@pii`/`@money` fields or sensitive permissions) `assess` fails until one of them approves the PR's latest commit; it re-runs on every review. A list, because `GITHUB_TOKEN` can't read org team membership; a GitHub App or token with org *Members: read* could replace it with a team lookup. Unset = no one can approve (fails closed).
 - `TOOL_REQUEST_BOT_LOGIN`: the GitHub login that Tool Request PRs are opened under (default `devin-ai-integration[bot]`).
 
 A PR that edits a workflow runs its own copy of that workflow, which is why `.github/` changes need code-owner review.

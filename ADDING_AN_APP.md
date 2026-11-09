@@ -27,7 +27,7 @@ implementation — copy its structure.
 3. Maker-checker apps need separate permissions for submitting and approving,
    and no single role should hold both.
 
-> Changing `rbac.ts` requires @security-team review (CODEOWNERS). Permissions
+> Changing `rbac.ts` requires security-reviewer (@anne01liang) review (CODEOWNERS). Permissions
 > matching `refund|payment|payout|pii` auto-label the PR `needs-security-review`.
 
 ## Step 2 — Schema (`prisma/schema.prisma`)

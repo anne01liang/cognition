@@ -24,7 +24,7 @@ export interface Violation {
 
 const ROOT = path.resolve(__dirname, "..");
 
-/** Unauthenticated or session-only entry points. Adding to this list requires @security-team review. */
+/** Unauthenticated or session-only entry points. Adding to this list requires security-reviewer (CODEOWNERS) review. */
 export const ROUTE_ALLOWLIST = ["src/app/api/auth/[...nextauth]/route.ts"];
 export const PAGE_ALLOWLIST = ["src/app/login/page.tsx", "src/app/forbidden/page.tsx", "src/app/(platform)/page.tsx"];
 

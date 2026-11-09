@@ -4,7 +4,7 @@
  * reviewer has approved the PR's current head commit. Dependency-free so the risk-label workflow runs it without `npm ci`.
  *
  * Reviewers come from the repo variable SECURITY_REVIEWERS (comma-separated GitHub logins): GITHUB_TOKEN cannot read
- * org team membership, so the list mirrors @security-team. Unset or empty list = nobody can approve (fails closed).
+ * org team membership, so the list mirrors the CODEOWNERS reviewers. Unset or empty list = nobody can approve (fails closed).
  */
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";

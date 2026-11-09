@@ -5,7 +5,7 @@
  *   (or a platform namespace: audit, pii).
  * - Apps reference permissions via src/apps/<app>/permissions.ts, which must
  *   only re-export strings declared here (enforced by tests).
- * - Changes to this file require @security-team review (CODEOWNERS), and
+ * - Changes to this file require security-reviewer review (CODEOWNERS), and
  *   sensitive permission changes trigger the `needs-security-review` label.
  * - Admin is NOT a superuser: it can read/verify audit and request/approve new tools, nothing else.
  */

@@ -112,6 +112,8 @@ interface V1GetSession {
 export function mapLiveSession(s: V1GetSession): SessionSnapshot {
   const prUrl = s.pull_request?.url ?? null;
   if (prUrl) return { status: "PR_OPEN", prUrl, acusUsed: null, error: null };
+  // A session asleep waiting for the user reports status "suspended" with status_enum "finished"; it can still resume and open a PR.
+  if (s.status === "suspended" || s.status === "blocked") return { status: "BUILDING", prUrl: null, acusUsed: null, error: null };
   const st = s.status_enum ?? s.status;
   if (st === "expired") return { status: "FAILED", prUrl: null, acusUsed: null, error: "Devin session expired without opening a PR." };
   if (st === "finished") return { status: "FAILED", prUrl: null, acusUsed: null, error: "Devin session finished without opening a PR." };

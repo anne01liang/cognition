@@ -80,6 +80,7 @@ describe("live mode", () => {
     expect(mapLiveSession({ status: "blocked", status_enum: "blocked", pull_request: { url: "https://github.com/o/r/pull/1" } })).toMatchObject({ status: "PR_OPEN", prUrl: "https://github.com/o/r/pull/1" });
     expect(mapLiveSession({ status: "expired", status_enum: "expired" }).status).toBe("FAILED");
     expect(mapLiveSession({ status: "finished", status_enum: "finished" }).status).toBe("FAILED");
+    expect(mapLiveSession({ status: "suspended", status_enum: "finished", pull_request: null }).status).toBe("BUILDING");
   });
 
   it("calls POST /v1/sessions with the bearer key and never puts the key in errors", async () => {

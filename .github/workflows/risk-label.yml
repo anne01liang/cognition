@@ -1,11 +1,15 @@
 name: risk-label
 
-# Adds "needs-security-review" when a PR touches @pii/@money fields or
-# sensitive permissions (refund|payment|payout|pii). CODEOWNERS + branch
-# protection ("Require review from Code Owners") make @security-team review mandatory.
+# Adds "needs-security-review" when a PR touches @pii/@money fields or sensitive permissions
+# (refund|payment|payout|pii). For HIGH-risk tool-request PRs (author = Tool Request bot) the `assess` job also
+# FAILS until a login in the repo variable SECURITY_REVIEWERS has approved the PR's latest commit; app code under
+# src/apps/** has no code owner, so this is what makes security review mandatory for those PRs.
+# It re-runs on every review. REQUIRED: make `assess` a required status check (README "Branch protection").
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
 
 permissions:
   contents: read
@@ -24,8 +28,10 @@ jobs:
           node-version: 20
       - name: Assess diff
         id: risk
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          git diff -U3 "origin/${{ github.base_ref }}...HEAD" -- prisma src > pr.diff
+          git diff -U3 "origin/$BASE_REF...HEAD" -- prisma src > pr.diff
           node scripts/risk-assess.mjs pr.diff
       - name: Add label
         if: steps.risk.outputs.risky == 'true'
@@ -35,3 +41,13 @@ jobs:
         run: |
           gh label create needs-security-review --color B60205 --description "Touches PII, money or sensitive permissions" 2>/dev/null || true
           gh pr edit "$PR" --add-label needs-security-review
+      - name: HIGH-risk tool-request PRs need a security reviewer's approval
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RISKY: ${{ steps.risk.outputs.risky }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          TOOL_REQUEST_BOT_LOGIN: ${{ vars.TOOL_REQUEST_BOT_LOGIN }}
+          SECURITY_REVIEWERS: ${{ vars.SECURITY_REVIEWERS }}
+        run: node scripts/check-security-review.mjs

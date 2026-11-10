@@ -2,7 +2,7 @@
 # dependencies, docs), plus the app files that define access. Later lines override earlier ones.
 # This repo is owned by a personal account, so GitHub teams don't exist: list the reviewers by login.
 # In an org, replace @anne01liang with a security team that has write access.
-# Only enforced with "Require review from Code Owners" in branch protection (README "Branch protection").
+# Only enforced with "Require review from Code Owners" in branch protection (GITHUB_SETUP.md "Branch protection").
 
 *                                 @anne01liang
 

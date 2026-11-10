@@ -3,7 +3,7 @@
  * whatever its title or labels say, since both are editable. Such a PR may only add one new app: its folder, route
  * shims, registry entry, schema/migration/seed additions, and in src/platform/rbac.ts only that app's own permission
  * strings and role grants. Anything else needs a PR from a human account.
- * This only protects main if the `scope` job is a required status check (see README "Branch protection").
+ * This only protects main if the `scope` job is a required status check (see GITHUB_SETUP.md "Branch protection").
  */
 import { execFileSync } from "node:child_process";
 

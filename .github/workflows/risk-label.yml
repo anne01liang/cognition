@@ -4,7 +4,7 @@ name: risk-label
 # (refund|payment|payout|pii). For HIGH-risk tool-request PRs (author = Tool Request bot) the `assess` job also
 # FAILS until a login in the repo variable SECURITY_REVIEWERS has approved the PR's latest commit; app code under
 # src/apps/** has no code owner, so this is what makes security review mandatory for those PRs.
-# It re-runs on every review. REQUIRED: make `assess` a required status check (README "Branch protection").
+# It re-runs on every review. REQUIRED: make `assess` a required status check (GITHUB_SETUP.md "Branch protection").
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]

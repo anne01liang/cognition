@@ -1,82 +1,97 @@
 # Internal Tools Platform
 
-Foundation for internal apps replacing Power Apps. Next.js 14 (App Router) ·
-Prisma/Postgres · Auth.js (mock SSO) · Tailwind/shadcn · Vitest.
+## What this is
 
-## Run locally
+This is a prototype internal-tools platform built with Devin. It reproduces the parts of Microsoft Power Apps that matter most to a fintech: apps that run under central permissions, approval and audit, and a self-service flow where non-engineers request new apps. A request becomes a validated manifest. After approval, a Devin session builds the app as a pull request, and CI gates check that PR before a human merges it. Stack: Next.js 14 (App Router), TypeScript, Prisma/Postgres, Auth.js (mock SSO), Tailwind/shadcn, Vitest, GitHub Actions.
+
+## What's in it
+
+**Platform** (`src/platform/`)
+- **RBAC:** `rbac.ts` is the only place roles and permissions are defined. Pages call `requirePagePermission()` before rendering.
+- **`defineAction`** (`action.ts`): every server action goes through it. It checks the session and the permission, validates input with Zod, runs the handler in a transaction and writes the audit event in that same transaction.
+- **Hash-chained audit** (`audit.ts`): every event stores the hash of the previous one, and a database trigger blocks UPDATE and DELETE on audit rows. Admins can check the chain at `GET /api/admin/audit/verify` or `/admin/audit`.
+- **Maker-checker** (`approval.ts`): the same user can't both submit and approve an item (four-eyes).
+- **PII masking:** fields marked `/// @pii` are masked in what actions return. `<MaskedField>` reveals a value only to users with `pii:reveal`, and each reveal is audited.
+- **Shared UI** (`src/components/platform/`): `DataTable`, `DetailPanel`, `FormBuilder`, `StatusBadge`.
+
+**Apps** (`src/apps/`, registered in `src/apps/registry.ts`)
+- **KYC queue** (`kyc`): analysts review cases, and a different user approves them (four-eyes). Customer PII is masked.
+- **Refunds** (`refunds`): support requests refunds and finance approves them. Amounts are integer cents (`@money`).
+- **Visitor Log** (`visitor-log`): room visit notes. Devin generated this app from a Tool Request ([PR #5](https://github.com/anne01liang/cognition/pull/5)).
+
+New apps follow [ADDING_AN_APP.md](./ADDING_AN_APP.md).
+
+**Tool Requests** (`src/platform/requests/`, UI at `/requests`)
+- A user with `tools:request` fills in a form. The platform turns it into a manifest, checks it against a schema, and derives a risk tier and an ACU estimate.
+- Status flow: `DRAFT → SUBMITTED → APPROVED → BUILDING ↔ NEEDS_INPUT → PR_OPEN → MERGED`, or `FAILED`.
+- Approval needs `tools:approve` and four-eyes, and must fit the team's monthly ACU budget.
+- On approval, the platform starts a Devin session that follows ADDING_AN_APP.md and records the PR it opens.
+- An app name is reserved while a request for it is in progress.
+
+**CI gates** (`.github/workflows/`, `scripts/`)
+- **`checks`** (`ci.yml`):
+  - Typecheck and tests (unit, DB integration and guardrail fixtures), plus migrations, `npm audit` (high) and build.
+  - **ESLint:** app code may not import `@prisma/client`, `@/platform/db` or `@/platform/audit`, use raw SQL, open its own `$transaction`, or touch the `AuditEvent` table.
+  - **`check:actions`:** every `"use server"` export is a `defineAction` call, and every route and page checks a permission.
+  - **`check:schema`:** fields that look like PII or money must be annotated `@pii` / `@money`.
+- **`scope`** (`tool-request-scope.yml`): a PR from the Tool Request bot account (`TOOL_REQUEST_BOT_LOGIN`) may only add its own app. That means its app folder plus additions to the registry, schema, seed, migrations and its own `rbac.ts` namespace.
+- **`assess`** (`risk-label.yml`): labels PRs that touch `@pii`/`@money` fields or refund, payment, payout or PII permissions. On a HIGH-risk Tool Request PR, it fails until a login in `SECURITY_REVIEWERS` approves the latest commit.
+- **CODEOWNERS:** @anne01liang owns everything outside `src/apps/**`, plus each app's `permissions.ts`, `manifest.ts` and the registry.
+- **The `protect-main` ruleset on `main`:**
+  - `checks`, `scope` and `assess` must pass, and the branch must be up to date.
+  - The latest push must be approved.
+  - Force-pushes and deleting `main` are blocked.
+- Setup steps for the ruleset, the `SECURITY_REVIEWERS` and `TOOL_REQUEST_BOT_LOGIN` repo variables, and a dedicated Tool Request bot identity are in [GITHUB_SETUP.md](./GITHUB_SETUP.md).
+
+## Run locally (mock mode)
+
+Requires Node 20 and Docker.
 
 ```bash
-cp .env.example .env            # then set NEXTAUTH_SECRET (openssl rand -base64 32)
+cp .env.example .env
+# set NEXTAUTH_SECRET in .env, e.g. to the output of: openssl rand -base64 32
 npm install
-docker compose up -d            # Postgres on :5432
-npm run seed                    # applies migrations + seeds users and sample data
-npm run dev                     # http://localhost:3000 -> pick a user on /login
+docker compose up -d     # Postgres 16 on localhost:5432
+npm run seed             # applies migrations, seeds users and sample data
+npm run dev              # http://localhost:3000/login, then pick a user (no password)
 ```
 
-`npm run seed` keeps existing tool requests, and the ACUs they use, because audit events reference them. For a clean reset, run `docker compose down -v` (this deletes the database volume), then `docker compose up -d && npm run seed`.
+Mock mode is the default (`DEVIN_MODE=mock`, `MOCK_SSO_ENABLED=true` in `.env.example`), so no Devin key is needed. In mock mode, an approved Tool Request simulates a build of about 30 seconds and returns a fake PR URL:
+- A tool name containing "fail" ends in `FAILED`.
+- A tool name containing "question" pauses in `NEEDS_INPUT` before it finishes.
 
-Seed users: alice (kyc_analyst), bob (kyc_approver), carol (support),
-dan (finance_approver), erin (admin), olivia (ops_lead).
+Live builds need `DEVIN_MODE=live` and `DEVIN_API_KEY`.
 
-## Checks (same as CI)
+`npm run seed` keeps existing Tool Requests, because audit events reference them. For a clean reset, run `docker compose down -v`, then `docker compose up -d && npm run seed`. Run the same checks as CI with `npm run check`; `npm run check:audit` runs the dependency check separately.
 
-```bash
-npm run typecheck
-npm run lint            # incl. "apps may not import @prisma/client / platform/db"
-npm run check:actions   # every "use server" export is defineAction; routes/pages guarded
-npm run check:schema    # @pii / @money annotations
-npm test                # unit + DB integration (uses TEST_DATABASE_URL, schema "test")
-npm run check:audit     # npm audit --audit-level=high with expiring allowlist
-```
+| User | Role | Can |
+| --- | --- | --- |
+| alice | `kyc_analyst` | create and review KYC cases, reveal PII |
+| bob | `kyc_approver` | approve KYC cases, reveal PII |
+| carol | `support` | read KYC, request refunds, use Visitor Log |
+| dan | `finance_approver` | approve refunds, reveal PII |
+| erin | `admin` | read and verify audit, request and approve Tool Requests |
+| olivia | `ops_lead` | read KYC and refunds, handle escalations, request tools |
 
-## Architecture
+To try a Tool Request: sign in as olivia and submit one at `/requests/new`. Then sign in as erin and approve it at `/requests`.
 
-| Concern | Where |
-| --- | --- |
-| Roles & permissions (single source) | `src/platform/rbac.ts` |
-| Guard | `requirePermission()` in `src/platform/guard.ts`; pages use `requirePagePermission()` |
-| All app reads/writes | `defineAction()` in `src/platform/action.ts` |
-| Hash-chained audit log | `src/platform/audit.ts`, trigger in `prisma/migrations/*_audit_append_only` |
-| Audit verify API | `GET /api/admin/audit/verify` (admin) · UI at `/admin/audit` |
-| Maker-checker | `src/platform/approval.ts` |
-| PII reveal | `<MaskedField>` + `revealPii` (`src/platform/pii/actions.ts`) |
-| UI blocks | `src/components/platform/` (DataTable, DetailPanel, FormBuilder, StatusBadge) |
-| Apps | `src/apps/<app>/`, registered in `src/apps/registry.ts` |
-| Tool Requests (request → manifest → approval → Devin build) | `src/platform/requests/`, UI at `/requests` (`tools:request`, `tools:approve`) |
-| CI guardrails | `.github/workflows/ci.yml`, `.github/workflows/risk-label.yml`, `.github/CODEOWNERS`, `scripts/` |
+## Worked example: PR #5, from Tool Request to merge
 
-Tool Requests run in mock mode by default (`DEVIN_MODE=mock`, no key needed): an approved request simulates a ~30s Devin build with a fake PR URL. Tool names containing "fail" end FAILED; names containing "question" pause in NEEDS_INPUT (shown on My Requests with a link to the session) from 5s to 20s, then finish. Set `DEVIN_API_KEY` (and `DEVIN_MODE=live`) to start real sessions via the v1 API.
+1. **Request:** olivia (`ops_lead`) asked for a "Visitor log" app, a list of room visit notes with no PII or money fields. The platform rated it LOW risk. erin (`admin`) approved it. The request ID is `cmw8rx7rq0000qh4cbhu8x4ab`.
+2. **Build:** the platform started a live Devin session, which opened [PR #5](https://github.com/anne01liang/cognition/pull/5) on 2026-11-09 at 04:44 UTC with no follow-up prompts. The platform recorded the PR link on the request automatically. The PR adds `src/apps/visitor-log/`, the `VisitNote` model and its migration, a registry entry, and `visitor_log:read`/`visitor_log:write` granted to `support`.
+3. **Rebase:** after [PR #4](https://github.com/anne01liang/cognition/pull/4) (Tool Requests and the `scope` gate) merged, PR #5 was rebased onto `main`. The only conflict was in `prisma/schema.prisma`, where both PRs had added models. The rebased head is `39c2146`.
+4. **CI on `39c2146`:** `checks` passed and `scope` reported `check-tool-request-scope: OK`. `assess` rated the PR HIGH risk, though both reasons were false alarms (see Known limitations). It then failed with `needs an approving review from one of: anne01liang`, and the merge state was `BLOCKED`.
+5. **Security review:** anne01liang approved `39c2146` at 23:56 UTC. The `assess` run triggered by the review passed ([run 42724391841](https://github.com/anne01liang/cognition/actions/runs/42724391841)). The PR stayed `BLOCKED` until the earlier failed `assess` run was re-run ([run 42719911370](https://github.com/anne01liang/cognition/actions/runs/42719911370)); the merge state then became `CLEAN`.
+6. **Merge:** anne01liang merged it on 2026-11-10 at 00:01 UTC as [`009df2c`](https://github.com/anne01liang/cognition/commit/009df2c18c50aa7710d7972a0214f4ae33b138c6).
 
-> **Production requirement:** Tool Request builds must open PRs under a dedicated GitHub identity, set as `TOOL_REQUEST_BOT_LOGIN`. The `scope` and `assess` gates recognize generated PRs by that author. See [the setup below](#production-requirement-a-dedicated-github-identity-for-tool-request-builds).
+## Known limitations
 
-## Branch protection (a human must enable)
-
-The CI guardrails only block merges if GitHub enforces them. On `main` (Settings → Branches, or a ruleset):
-
-1. **Require a pull request before merging**, with at least 1 approval.
-2. **Require review from Code Owners** (makes `.github/CODEOWNERS` bite: @anne01liang on everything outside `src/apps/**`). CODEOWNERS names users, not a team, because this repo belongs to a personal account and teams only exist in GitHub organizations. In an org, replace them with a security team that has write access.
-3. **Dismiss stale approvals when new commits are pushed** and **require approval of the most recent push**, so a reviewed PR can't change afterwards unreviewed.
-4. **Require status checks to pass**, with these required: `checks` (CI), `scope` (tool-request-scope: Tool Request bot PRs may only add one new app), `assess` (risk label + security approval for HIGH-risk tool-request PRs). Also **require branches to be up to date**.
-5. **Do not allow bypassing the above settings** (applies to admins too).
-6. **Block force pushes and branch deletion.**
-
-Repo variables (Settings → Secrets and variables → Actions → Variables):
-
-- `SECURITY_REVIEWERS`: comma-separated GitHub logins of the security reviewers (today `anne01liang`, matching CODEOWNERS). App code under `src/apps/**` has no code owner, so for a HIGH-risk tool-request PR (it touches `@pii`/`@money` fields or sensitive permissions) `assess` fails until one of them approves the PR's latest commit; it re-runs on every review. A list, because `GITHUB_TOKEN` can't read org team membership; a GitHub App or token with org *Members: read* could replace it with a team lookup. Unset = no one can approve (fails closed).
-- `TOOL_REQUEST_BOT_LOGIN`: the GitHub login that Tool Request PRs are opened under (default `devin-ai-integration[bot]`).
-
-A PR that edits a workflow runs its own copy of that workflow, which is why `.github/` changes need code-owner review.
-
-### Production requirement: a dedicated GitHub identity for Tool Request builds
-
-`scope` and the security-review gate key on the PR author. With the default, every PR any Devin session opens (including platform work engineers ask Devin for) is treated as a tool request and fails `scope`. Give Tool Request builds their own login:
-
-1. Create a GitHub machine user (e.g. `acme-tool-builder`) with write access to this repo only.
-2. Create a Devin user for it and link its GitHub account (Devin → Settings → Connections → GitHub).
-3. Start Tool Request sessions as that Devin user: a v1 personal API key of that user as `DEVIN_API_KEY`, or a v3 service user with `create_as_user_id` (needs `ImpersonateOrgSessions`).
-4. In Devin → Settings → Devin → Pull requests, set **Open PRs as: User only**, so a session that can't open the PR as that user fails instead of falling back to `devin-ai-integration[bot]` (which would skip both checks).
-5. Set the repo variable `TOOL_REQUEST_BOT_LOGIN=acme-tool-builder`.
-
-A separate Devin GitHub App installation or Devin org doesn't help: every installation opens PRs as `devin-ai-integration[bot]`.
-
-To build a new app follow **[ADDING_AN_APP.md](./ADDING_AN_APP.md)**.
+- **Rulesets are only enforced while the repo is public.** The repo belongs to a personal GitHub Free account, where rulesets on private repos are not enforced. [PR #4](https://github.com/anne01liang/cognition/pull/4) merged with failing `scope`/`assess` before the repo was made public.
+- **Two risk-assess false alarms** (`scripts/risk-assess.mjs`) made PR #5 HIGH risk:
+  - Any changed hunk that contains the text `@pii` or `@money` counts as touching an annotated field, even in prose. The trigger was a comment in `src/apps/visitor-log/actions.ts` saying the model has *no* such fields.
+  - Any changed line that contains a sensitive permission counts as changing it. The `support` role line gained `visitor_log:*` and already contained `refund:read`, which didn't change.
+- **`assess` has to be re-run by hand after approval.** The approval re-runs `assess` and that run passes, but the earlier failed run on the same commit keeps the PR `BLOCKED` until someone re-runs it.
+- **There is one code owner.** CODEOWNERS and `SECURITY_REVIEWERS` both list only @anne01liang, and personal-account repos can't use GitHub teams. The ruleset doesn't require code-owner review (`require_code_owner_review: false`), so CODEOWNERS is advisory today.
+- **The bot identity is shared.** `scope` and `assess` recognise Tool Request PRs by their author, `TOOL_REQUEST_BOT_LOGIN`, which is currently `devin-ai-integration[bot]`. That is the same account as every other Devin PR, so platform work Devin does is also checked as a Tool Request. A dedicated machine user would fix this.
+- **Sign-in is mock SSO.** It lets anyone sign in as any seeded user without a password, and it is disabled when `NODE_ENV=production`. A real OIDC provider (e.g. Entra ID or Okta) is not wired up.
+- **There is no feature-flag admin panel.** It is one of the client's three Power Apps apps but was not built. Only the KYC queue and refunds equivalents exist.

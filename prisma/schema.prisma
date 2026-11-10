@@ -161,3 +161,26 @@ model ToolRequest {
   @@index([status])
   @@index([team, approvedAt])
 }
+
+// ===== app: visitor-log =====
+
+enum VisitNoteStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+/// Generic room visit note. Room label and a short note only: no names or personal information.
+model VisitNote {
+  id            String          @id @default(cuid())
+  roomLabel     String
+  note          String
+  status        VisitNoteStatus @default(DRAFT)
+  createdById   String
+  submittedById String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([status])
+}
